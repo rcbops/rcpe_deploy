@@ -1,0 +1,148 @@
+#!/bin/bash
+
+set -e
+set -u
+
+apt-get install -y kpartx lvm2
+modprobe nbd
+
+mkdir -p /opt/rcb/crowbar
+if [ ! -e ~rcb/crowbar.qcow2 ]; then
+    echo "Downloading crowbar vm..."
+    wget http://monkeypuppetlabs.com/crowbar.qcow2 -O ~rcb/crowbar.qcow2
+fi
+
+if [ ! -e /opt/rcb/crowbar/crowbar.qcow2 ]; then
+    echo "Copying crowbar to /opt/rcb/crowbar"
+    cp ~rcb/crowbar.qcow2 /opt/rcb/crowbar/crowbar.qcow2
+fi
+
+# 2 gigs of ram
+
+if [ ! -e /opt/rcb/crowbar/crowbar.xml ]; then
+    echo "Creating crowbar vm"
+    cat > /opt/rcb/crowbar/crowbar.xml <<EOF
+<domain type='kvm'>
+  <name>crowbar</name>
+  <memory>2097152</memory>
+  <currentMemory>2097152</currentMemory>
+  <vcpu>1</vcpu>
+  <os>
+    <type arch='x86_64' machine='pc-0.12'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <pae/>
+  </features>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <emulator>/usr/bin/kvm</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/opt/rcb/crowbar/crowbar.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+      <alias name='virtio-disk0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/>
+    </disk>
+    <disk type='block' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <target dev='hdc' bus='ide'/>
+      <readonly/>
+      <alias name='ide0-1-0'/>
+      <address type='drive' controller='0' bus='1' unit='0'/>
+    </disk>
+    <controller type='ide' index='0'>
+      <alias name='ide0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/>
+    </controller>
+    <interface type='bridge'>
+      <source bridge='crowbarbr0'/>
+      <target dev='vnet0'/>
+      <model type='virtio'/>
+      <alias name='net0'/>
+    </interface>
+    <serial type='pty'>
+      <target port='0'/>
+      <alias name='serial0'/>
+    </serial>
+    <console type='pty' tty='/dev/pts/1'>
+      <target type='serial' port='0'/>
+      <alias name='serial0'/>
+    </console>
+    <input type='mouse' bus='ps2'/>
+    <graphics type='vnc' autoport='yes'/>
+    <sound model='ac97'>
+      <alias name='sound0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/>
+    </sound>
+    <video>
+      <model type='cirrus' vram='9216' heads='1'/>
+n      <alias name='video0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+    </video>
+    <memballoon model='virtio'>
+      <alias name='balloon0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x06' function='0x0'/>
+    </memballoon>
+  </devices>
+</domain>
+EOF
+fi
+
+# this should make a permanent bridge...
+
+if ( ! grep -q "crowbarbr0" /etc/network/interfaces ); then
+    cat >> /etc/network/interfaces <<EOF
+auto crowbarbr0
+iface crowbarbr0 inet static
+      address 192.168.124.9
+      netmask 255.255.255.0
+      bridge_ports none
+      bridge_fd 0
+      bridge_stp off
+      bridge_maxwait 0
+
+EOF
+fi
+
+if ( ! /sbin/ifconfig | grep -q "crowbarbr0" ); then
+    ifup crowbarbr0 > /dev/null 2>&1
+fi
+
+# interface is there... disk is there... should drop an init script...
+if ( ! virsh list --all | grep crowbar ); then
+    virsh define /opt/rcb/crowbar/crowbar.xml
+fi
+
+if [ ! -e ~rcb/network.json ]; then
+    echo "You don't have a network.json file.  Try again"
+    exit 0
+fi
+
+# mount the disk image and insert the json
+qemu-nbd -c /dev/nbd0 /opt/rcb/crowbar/crowbar.qcow2
+kpartx -a /dev/nbd0
+
+# shep this shit up
+sleep 5
+
+# on ubuntu, lvm automatically gets assembled, so we don't have to scan
+mkdir -p /mnt/crowbar
+mount /dev/mapper/unassigned--hostname-root /mnt/crowbar
+cp network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
+umount /mnt/crowbar
+
+sudo lvchange -an /dev/unassigned-hostname/root
+sudo lvchange -an /dev/unassigned-hostname/swap_1
+
+kpartx -d /dev/nbd0
+qemu-nbd -d /dev/nbd0
+
+echo "Go nuts."
+
+

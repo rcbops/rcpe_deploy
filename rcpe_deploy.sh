@@ -7,6 +7,11 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' /etc/sysctl.conf
 sysctl -p /etc/sysctl.conf
 
+# Check for/Generate ssh key
+if [ ! -f ~/.ssh/id_rsa.pub ]; then
+    ssh-keygen -t rsa -f ~/.ssh/id_rsa -N '' -q
+fi
+
 # Remove old deployrc
 if [ -f .deployrc ]; then
     rm -rf .deployrc
@@ -38,6 +43,8 @@ sed -i "s/<nameserver>/${BASTION}/" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/preseed.txt
+PUBKEY=`cat ~/.ssh/id_rsa.pub`
+sed -i '/d-i preseed\/late_command string wget .*$/s|$|\;mkdir ~rcb/.ssh; chmod -R 600 ~rcb/.ssh; echo $PUBKEY >> ~rcb/.ssh/authorized_keys; chmod -R 644 ~rcb/.ssh/authorized_keys; chown -R rcb:rcb ~rcb/.ssh|' /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 
 # Set Rackspace DNS in pxeappliance
@@ -118,3 +125,12 @@ while [ $count -lt 30 ]; do
         exit 1
     fi
 done
+
+# Destroy pxeappliance vm/domain
+virsh destroy pxeappliance
+virsh undefine pxeappliance
+
+# Transfer Crowbar install script to admin node
+scp -i ~/id_rsa.pub install-crowbar.sh rcb@${CROWBAR}:~/
+ssh -i ~/id_rsa.pub rcb@${CROWBAR} 'chmod a+x ~/install-crowbar.sh; sudo -i ./install-crowbar.sh'
+
