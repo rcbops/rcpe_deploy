@@ -9,7 +9,7 @@ modprobe nbd
 mkdir -p /opt/rcb/crowbar
 if [ ! -e ~rcb/crowbar.qcow2 ]; then
     echo "Downloading crowbar vm..."
-    wget http://monkeypuppetlabs.com/crowbar.qcow2 -O ~rcb/crowbar.qcow2
+    wget http://build.monkeypuppetlabs.com/crowbar.qcow2 -O ~rcb/crowbar.qcow2
 fi
 
 if [ ! -e /opt/rcb/crowbar/crowbar.qcow2 ]; then
