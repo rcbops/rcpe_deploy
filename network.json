@@ -1,0 +1,245 @@
+{
+  "id": "bc-template-network",
+  "description": "Instantiates network interfaces on the crowbar managed systems. Also manages the address pool",
+  "attributes": {
+    "network": {
+      "start_up_delay": 30,
+      "mode": "single",
+      "teaming": {
+        "mode": 4
+      },
+      "interface_map": [
+        {
+          "pattern": "PowerEdge R610",
+          "bus_order": [
+            "/0/100/1",
+            "/0/100/3"
+          ]
+        },
+        {
+          "pattern": "PowerEdge R710",
+          "bus_order": [
+            "/0/100/1",
+            "/0/100/3"
+          ]
+        },
+        {
+          "pattern": "PowerEdge C6145",
+          "bus_order": [
+            "/0/100/4",
+            "/0/100/2"
+          ]
+        },
+        {
+          "pattern": "PowerEdge C2100",
+          "bus_order": [
+            "/0/100/1c",
+            "/0/100/7",
+            "/0/100/9",
+            "/0/100/1"
+          ]
+        },
+        {
+          "pattern": "C6100",
+          "bus_order": [
+            "/0/100/1",
+            "/0/100/3",
+            "/0/100/7"
+          ]
+        },
+        {
+          "pattern": "product",
+          "bus_order": [
+            "/0/100/1",
+            "/0/100/2"
+          ]
+        }
+      ],
+      "conduit_map": [
+        {
+          "pattern": "team/.*/.*",
+          "conduit_list": { 
+            "intf0": {
+              "if_list": [ "1g1", "1g2" ],
+              "team_mode": 6
+            },
+            "intf1": {
+              "if_list": [ "1g1", "1g2" ],
+              "team_mode": 6
+            },
+            "intf2": {
+              "if_list": [ "1g1", "1g2" ],
+              "team_mode": 6
+            }
+          }
+        },
+        {
+          "pattern": "dual/.*/.*",
+          "conduit_list": { 
+            "intf0": {
+              "if_list": [ "1g1" ]
+            },
+            "intf1": {
+              "if_list": [ "1g2" ]
+            },
+            "intf2": {
+              "if_list": [ "1g1" ]
+            }
+          }
+        },
+        {
+          "pattern": "single/.*/.*",
+          "conduit_list": { 
+            "intf0": {
+              "if_list": [ "1g1" ]
+            },
+            "intf1": {
+              "if_list": [ "1g1" ]
+            },
+            "intf2": {
+              "if_list": [ "1g1" ]
+            }
+          }
+        },
+        {
+          "pattern": ".*/.*/.*",
+          "conduit_list": { 
+            "intf0": {
+              "if_list": [ "1g1" ]
+            },
+            "intf1": {
+              "if_list": [ "1g1" ]
+            },
+            "intf2": {
+              "if_list": [ "1g1" ]
+            }
+          }
+        },
+        {
+          "pattern": "mode/1g_adpt_count/role",
+          "conduit_list": { 
+            "intf0": {
+              "if_list": [ "1g1" ]
+            },
+            "intf1": {
+              "if_list": [ "1g1" ]
+            },
+            "intf2": {
+              "if_list": [ "1g1" ]
+            }
+          }
+        }
+      ],
+      "networks": {
+        "storage": {
+          "conduit": "intf1",
+          "vlan": 208,
+          "use_vlan": true,
+          "add_bridge": false,
+          "subnet": "172.31.8.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.8.255",
+          "ranges": {
+            "host": { "start": "172.31.8.10", "end": "172.31.8.239" }
+          }
+        },
+        "public": {
+          "conduit": "intf1",
+          "vlan": 216,
+          "use_vlan": true,
+          "add_bridge": false,
+          "subnet": "172.31.16.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.16.255",
+          "router": "172.31.16.1",
+          "ranges": {
+            "host": { "start": "172.31.16.2", "end": "172.31.16.49" },
+            "dhcp": { "start": "172.31.16.50", "end": "172.31.16.254" }
+          }
+        },
+        "nova_fixed": {
+          "conduit": "intf1",
+          "vlan": 232,
+          "use_vlan": true,
+          "add_bridge": true,
+          "subnet": "172.31.32.0",
+          "netmask": "255.255.240.0",
+          "broadcast": "172.31.47.255",
+          "router": "172.31.32.1",
+          "ranges": {
+            "router": { "start": "172.31.32.1", "end": "172.31.32.10" },
+            "dhcp": { "start": "172.31.32.11", "end": "172.31.47.254" }
+          }
+        },
+        "nova_floating": {
+          "conduit": "intf1",
+          "vlan": 224,
+          "use_vlan": true,
+          "add_bridge": false,
+          "subnet": "172.31.24.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.24.255",
+          "ranges": {
+            "host": { "start": "172.31.24.2", "end": "172.32.24.254" }
+          }
+        },
+        "bmc": {
+          "conduit": "bmc",
+          "vlan": 100,
+          "use_vlan": false,
+          "add_bridge": false,
+          "subnet": "172.31.0.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.0.255",
+          "ranges": {
+            "host": { "start": "172.31.0.151", "end": "172.31.0.240" }
+          }
+        },
+        "bmc_vlan": {
+          "conduit": "intf2",
+          "vlan": 100,
+          "use_vlan": true,
+          "add_bridge": false,
+          "subnet": "172.31.0.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.0.255",
+          "ranges": {
+            "host": { "start": "172.31.0.151", "end": "172.31.0.240" }
+          }
+        },
+        "admin": {
+          "conduit": "intf0",
+          "vlan": 100,
+          "use_vlan": false,
+          "add_bridge": false,
+          "subnet": "172.31.0.0",
+          "netmask": "255.255.255.0",
+          "broadcast": "172.31.0.255",
+          "router": "172.31.0.1",
+          "ranges": {
+            "admin": { "start": "172.31.0.10", "end": "172.31.0.11" },
+            "dhcp": { "start": "172.31.0.21", "end": "172.31.0.60" },
+            "host": { "start": "172.31.0.61", "end": "172.31.0.150" },
+            "switch": { "start": "172.31.0.241", "end": "172.31.0.250" }
+          },
+        }
+      }
+    }
+  },
+  "deployment": {
+    "network": {
+      "crowbar-revision": 0,
+      "elements": {},
+      "element_order": [
+        [ "network" ]
+      ],
+      "config": {
+        "environment": "network-base-config",
+        "mode": "full",
+        "transitions": true,
+        "transition_list": [ "discovered" ]
+      }
+    }
+  }
+}
+
