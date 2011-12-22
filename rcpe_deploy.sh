@@ -20,7 +20,7 @@ fi
 
 # Parse json file, extract bastion/pxeapp/infra/crowbar addresses, export to .deployrc
 echo "Extracting json values to environment variables.."
-for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
+for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
 
 # Source .deployrc
 source .deployrc
@@ -40,10 +40,10 @@ mount /dev/nbd0p1 /mnt/pxeapp
 
 # Fixup preseed and pxelinux.cfg/defaul to match environment
 echo "Modifying infra node preseed with environment values.."
-sed -i "s/<nameserver>/${BASTION}/" /mnt/pxeapp/var/www/preseed.txt
-sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/var/www/preseed.txt
-sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/var/www/preseed.txt
-sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/preseed.txt
+#sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+#sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+#sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+#sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 PUBKEY=`cat ~/.ssh/id_rsa.pub`
 sed -i "/^#d-i preseed\/late_command string/a d-i preseed\/late_command string wget http:\/\/${PXEAPP}\/post_install.sh -O \/target\/root\/post_install.sh; chmod a+x \/target\/root\/post_install.sh; chroot \/target \/root\/post_install.sh" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
@@ -61,11 +61,20 @@ echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
 chmod -R 644 /home/rcb/.ssh/authorized_keys
 chown -R rcb:rcb /home/rcb/.ssh/
 wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
+wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
 sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local
+sed -i 's/dhcp/static/' /etc/network/interfaces
+cat >>/etc/network/interfaces << END
+    address ${INFRA}
+    netmask ${NETMASK}
+    gateway ${GATEWAY}
+END
+echo 'nameserver ${NAMESERVER}' > /etc/resolv.conf
 EOF
 cp post_install.sh /mnt/pxeapp/var/www/post_install.sh
+cp network.json /mnt/pxeapp/var/www/network.json
 
 # Copy crowbar install script to the apache dir for later..
 cp install-crowbar /mnt/pxeapp/var/www/install-crowbar
