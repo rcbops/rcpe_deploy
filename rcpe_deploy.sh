@@ -64,7 +64,7 @@ wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
 wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
-sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local
+sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local &>/var/log/install-crowbar.log
 sed -i 's/dhcp/static/' /etc/network/interfaces
 cat >>/etc/network/interfaces << END
     address ${INFRA}
