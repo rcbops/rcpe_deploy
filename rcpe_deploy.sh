@@ -1,5 +1,6 @@
 #!/bin/bash
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
+SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
 
 # Prepare bastion interface/iptables
 echo "Setting up iptables and system forwarding for eth0.."
@@ -26,15 +27,15 @@ source .deployrc
 
 # Download pxeappliance image
 echo "Downloading pxeappliance from cloud files.."
-wget -O /opt/rcb/pxeappliance.qcow2 http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2
-wget -O /opt/rcb/pxeappliance.xml http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml
+# wget -O /opt/rcb/pxeappliance.qcow2 http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2
+# wget -O /opt/rcb/pxeappliance.xml http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml
 
 # Mount image
 echo "Mounting pxeppliance qcow.."
 modprobe nbd max_part=8
 qemu-nbd -c /dev/nbd0 /opt/rcb/pxeappliance.qcow2
 partprobe /dev/nbd0
-sleep 5
+sleep 10
 mount /dev/nbd0p1 /mnt/pxeapp
 
 # Fixup preseed and pxelinux.cfg/defaul to match environment
@@ -44,12 +45,30 @@ sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/preseed.txt
 PUBKEY=`cat ~/.ssh/id_rsa.pub`
-sed -i '/d-i preseed\/late_command string wget .*$/s|$|\;mkdir ~rcb/.ssh; chmod -R 600 ~rcb/.ssh; echo $PUBKEY >> ~rcb/.ssh/authorized_keys; chmod -R 644 ~rcb/.ssh/authorized_keys; chown -R rcb:rcb ~rcb/.ssh|' /mnt/pxeapp/var/www/preseed.txt
+sed -i "/^#d-i preseed\/late_command string/a d-i preseed\/late_command string wget http:\/\/${PXEAPP}\/post_install.sh -O \/target\/root\/post_install.sh; chmod a+x \/target\/root\/post_install.sh; chroot \/target \/root\/post_install.sh" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 
 # Set Rackspace DNS in pxeappliance
 echo "Setting pxeappliance nameserver.."
 echo "nameserver 64.39.2.170" >> /mnt/pxeapp/etc/resolv.conf
+
+# Create post_install.sh and move to apache dir for later..
+cat >post_install.sh << EOF
+#!/bin/bash
+mkdir /home/rcb/.ssh
+chmod -R 700 /home/rcb/.ssh
+echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
+chmod -R 644 /home/rcb/.ssh/authorized_keys
+chown -R rcb:rcb /home/rcb/.ssh/
+wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
+chown rcb:rcb /home/rcb/install-crowbar
+chmod ug+x /home/rcb/install-crowbar
+sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local
+EOF
+cp post_install.sh /mnt/pxeapp/var/www/post_install.sh
+
+# Copy crowbar install script to the apache dir for later..
+cp install-crowbar /mnt/pxeapp/var/www/install-crowbar
 
 # Insert eth0 configuration into /etc/network/interfaces
 echo "Modifying pxeappliance network interfaces.."
@@ -85,7 +104,6 @@ EOF
 mv /tmp/dnsmasq.conf /mnt/pxeapp/etc/dnsmasq.conf
 rm -rf /tmp/dnsmasq.conf
 
-# FIXUP 
 # Unmount modified image
 echo "Unmounting pxeappliance image.."
 umount /mnt/pxeapp
@@ -126,11 +144,10 @@ while [ $count -lt 30 ]; do
     fi
 done
 
+# Transfer Crowbar install script to admin node
+ssh-keygen -f "/root/.ssh/known_hosts" -R 172.31.0.9
+ssh -i ~/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
 virsh undefine pxeappliance
-
-# Transfer Crowbar install script to admin node
-scp -i ~/id_rsa.pub install-crowbar.sh rcb@${CROWBAR}:~/
-ssh -i ~/id_rsa.pub rcb@${CROWBAR} 'chmod a+x ~/install-crowbar.sh; sudo -i ./install-crowbar.sh'
-

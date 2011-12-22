@@ -145,4 +145,5 @@ qemu-nbd -d /dev/nbd0
 
 echo "Go nuts."
 
-
+# Remove from rc.local
+sed -i '/install-crowbar/d' /etc/rc.local
