@@ -1,4 +1,14 @@
 #!/bin/bash
+
+set -e
+set -x
+
+# remove me when done tsting
+PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
+
+PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
+PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
+
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
 SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
 
@@ -27,15 +37,22 @@ source .deployrc
 
 # Download pxeappliance image
 echo "Downloading pxeappliance from cloud files.."
-# wget -O /opt/rcb/pxeappliance.qcow2 http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2
-# wget -O /opt/rcb/pxeappliance.xml http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml
+curl -o /opt/rcb/pxeappliance.qcow2 ${PXE_IMAGE_URL}
+curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
 
 # Mount image
 echo "Mounting pxeppliance qcow.."
 modprobe nbd max_part=8
 qemu-nbd -c /dev/nbd0 /opt/rcb/pxeappliance.qcow2
-partprobe /dev/nbd0
-sleep 10
+
+sleep 3
+
+if [ ! -e /dev/nbd0p1 ]; then
+    partprobe /dev/nbd0
+fi
+
+sleep 3
+
 mount /dev/nbd0p1 /mnt/pxeapp
 
 # Fixup preseed and pxelinux.cfg/defaul to match environment
@@ -154,8 +171,12 @@ while [ $count -lt 30 ]; do
 done
 
 # Transfer Crowbar install script to admin node
-ssh-keygen -f "/root/.ssh/known_hosts" -R 172.31.0.9
-ssh -i ~/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+if [ -f ~/.ssh/known_hosts ]; then
+    # could probably just whack it... we're unknown hosting to /dev/null
+    ssh-keygen -f ~/.ssh/known_hosts -R 172.31.0.9
+fi
+
+ssh -i ~/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
