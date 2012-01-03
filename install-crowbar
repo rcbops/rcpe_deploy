@@ -88,7 +88,7 @@ if [ ! -e /opt/rcb/crowbar/crowbar.xml ]; then
     </sound>
     <video>
       <model type='cirrus' vram='9216' heads='1'/>
-n      <alias name='video0'/>
+      <alias name='video0'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
     </video>
     <memballoon model='virtio'>
@@ -106,7 +106,7 @@ if ( ! grep -q "crowbarbr0" /etc/network/interfaces ); then
     cat >> /etc/network/interfaces <<EOF
 auto crowbarbr0
 iface crowbarbr0 inet static
-      address 192.168.124.9
+      address 192.168.125.9
       netmask 255.255.255.0
       bridge_ports none
       bridge_fd 0
@@ -148,6 +148,21 @@ sleep 5
 mkdir -p /mnt/crowbar
 mount /dev/mapper/unassigned--hostname-root /mnt/crowbar
 cp network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
+
+cat > /mnt/crowbar/etc/network/interfaces <<EOF
+auto  lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet manual
+    post-up ifconfig eth0 up
+
+auto eth1
+iface eth1 inet static
+    address 192.168.124.10
+    netmask 255.255.255.0
+EOF
+
 umount /mnt/crowbar
 
 sudo lvchange -an /dev/unassigned-hostname/root
