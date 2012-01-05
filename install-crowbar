@@ -132,21 +132,21 @@ if [ ! -e ~rcb/network.json ]; then
 fi
 
 # mount the disk image and insert the json
+if ! lsmod | grep nbd; then
+    modprobe nbd max_part=8
+fi
+
 # gawd qemu-nbd is suck
 qemu-nbd -d ${NBD_DEVICE}
 qemu-nbd -d ${NBD_DEVICE}
 qemu-nbd -d ${NBD_DEVICE}
 qemu-nbd -d ${NBD_DEVICE}
 
-rmmod nbd
-sleep 2
-modprobe nbd
-
 sleep 2
 qemu-nbd -c ${NBD_DEVICE} /opt/rcb/crowbar/crowbar.qcow2
 
 sleep 10
-kpartx -a ${NBD_DEVICE}
+# kpartx -a ${NBD_DEVICE}
 sleep 5
 pvscan
 sleep 5
@@ -158,7 +158,7 @@ sleep 5
 
 mkdir -p /mnt/crowbar
 mount /dev/mapper/unassigned--hostname-root /mnt/crowbar
-cp network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
+cp /home/rcb/network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
 
 cat > /mnt/crowbar/etc/network/interfaces <<EOF
 auto  lo
@@ -168,6 +168,7 @@ auto eth0
 iface eth0 inet static
     address 172.31.0.10
     netmask 255.255.255.0
+    gateway 172.31.0.5
 
 auto eth1
 iface eth1 inet static
@@ -175,7 +176,12 @@ iface eth1 inet static
     netmask 255.255.255.0
 EOF
 
-wget https://github.com/pmullaney/barclamp-deployer/raw/62fa46f53460fb7ff220d28915aff26f2c25e155/chef/cookbooks/ohai/files/default/plugins/crowbar.rb -O /mnt/crowbar/opt/dell/barclamps/deployer/chef/cookbooks/ohai/files/default/plugins/crowbar.rb
+cat > /mnt/crowbar/etc/resolv.conf <<EOF
+nameserver 64.39.2.170
+EOF
+
+
+#wget https://github.com/pmullaney/barclamp-deployer/raw/62fa46f53460fb7ff220d28915aff26f2c25e155/chef/cookbooks/ohai/files/default/plugins/crowbar.rb -O /mnt/crowbar/opt/dell/barclamps/deployer/chef/cookbooks/ohai/files/default/plugins/crowbar.rb
 
 umount /mnt/crowbar
 
