@@ -5,6 +5,7 @@ set -x
 
 # remove me when done tsting
 PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
+#PXE_XML_URL=file:///opt/rcb/pxeappliance-dist.xml
 
 PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
@@ -19,9 +20,12 @@ sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' /etc/sysctl.conf
 sysctl -p /etc/sysctl.conf
 
 # Check for/Generate ssh key
-if [ ! -f ~/.ssh/id_rsa.pub ]; then
-    ssh-keygen -t rsa -f ~/.ssh/id_rsa -N '' -q
+if [ ! -f /home/openstack/.ssh/id_rsa.pub ]; then
+    ssh-keygen -t rsa -f /home/openstack/.ssh/id_rsa -N '' -q
 fi
+
+chown -R openstack: /home/openstack/.ssh
+chmod -R go-rwx /home/openstack/.ssh
 
 # Remove old deployrc
 if [ -f .deployrc ]; then
@@ -75,19 +79,40 @@ cat >post_install.sh << EOF
 mkdir /home/rcb/.ssh
 chmod -R 700 /home/rcb/.ssh
 echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
-chmod -R 644 /home/rcb/.ssh/authorized_keys
+chmod -R 600 /home/rcb/.ssh/authorized_keys
 chown -R rcb:rcb /home/rcb/.ssh/
 wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
 wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
 sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local &>/var/log/install-crowbar.log
-sed -i 's/dhcp/static/' /etc/network/interfaces
-cat >>/etc/network/interfaces << END
+cat > /etc/network/interfaces <<EOFNET
+auto lo
+iface lo inet loopback
+
+auth eth0
+iface eth0 inet manual
+    post-up ifconfig eth0 up
+
+auto br0
+iface br0 inet static
     address ${INFRA}
     netmask ${NETMASK}
     gateway ${GATEWAY}
-END
+    bridge_ports eth0
+    bridge_stp off
+    bridge_maxwait 0
+    bridge_fd 0
+
+auto crowbarbr0 
+iface crowbarbr0 inet static
+    address 192.168.125.9
+    netmask 255.255.255.0
+    bridge_ports none
+    bridge_fd 0
+    bridge_stp off
+    bridge_maxwait 0
+EOFNET
 echo 'nameserver ${NAMESERVER}' > /etc/resolv.conf
 EOF
 cp post_install.sh /mnt/pxeapp/var/www/post_install.sh
@@ -130,6 +155,15 @@ EOF
 mv /tmp/dnsmasq.conf /mnt/pxeapp/etc/dnsmasq.conf
 rm -rf /tmp/dnsmasq.conf
 
+# Turn off ipv6 (seems to cause some dnsmasq problems)
+cat > /mnt/pxeapp/etc/modprobe.d/00local.conf <<EOF
+install ipv6 /bin/true
+alias net-pf-10 off
+alias ipv6 off
+EOF
+
+sed -i /mnt/pxeapp/boot/grub/grub.cfg -e 's#quiet$#quiet ipv6.disable=1#'
+
 # Unmount modified image
 echo "Unmounting pxeappliance image.."
 umount /mnt/pxeapp
@@ -171,12 +205,12 @@ while [ $count -lt 30 ]; do
 done
 
 # Transfer Crowbar install script to admin node
-if [ -f ~/.ssh/known_hosts ]; then
+if [ -f /home/openstack/.ssh/known_hosts ]; then
     # could probably just whack it... we're unknown hosting to /dev/null
-    ssh-keygen -f ~/.ssh/known_hosts -R 172.31.0.9
+    ssh-keygen -f /home/openstack/.ssh/known_hosts -R 172.31.0.9
 fi
 
-ssh -i ~/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+ssh -i /home/openstack/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
