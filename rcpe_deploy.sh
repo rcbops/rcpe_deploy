@@ -61,11 +61,11 @@ mount /dev/nbd0p1 /mnt/pxeapp
 
 # Fixup preseed and pxelinux.cfg/defaul to match environment
 echo "Modifying infra node preseed with environment values.."
-#sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-#sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-#sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-#sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-PUBKEY=`cat ~/.ssh/id_rsa.pub`
+sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
+PUBKEY=`cat /home/openstack/.ssh/id_rsa.pub`
 sed -i "/^#d-i preseed\/late_command string/a d-i preseed\/late_command string wget http:\/\/${PXEAPP}\/post_install.sh -O \/target\/root\/post_install.sh; chmod a+x \/target\/root\/post_install.sh; chroot \/target \/root\/post_install.sh" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 
@@ -85,7 +85,7 @@ wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
 wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
-sed -i '/^exit/i /home/rcb/install-crowbar' /etc/rc.local &>/var/log/install-crowbar.log
+sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar' /etc/rc.local &>/var/log/install-crowbar.log
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -121,6 +121,12 @@ cp network.json /mnt/pxeapp/var/www/network.json
 # Copy crowbar install script to the apache dir for later..
 cp install-crowbar /mnt/pxeapp/var/www/install-crowbar
 
+# Fix up the install-crowbar
+sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/var/www/install-crowbar
+sed -i "s/<crowbar>/${CROWBAR}/" /mnt/pxeapp/var/www/install-crowbar
+sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/var/www/install-crowbar
+sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/install-crowbar
+
 # Insert eth0 configuration into /etc/network/interfaces
 echo "Modifying pxeappliance network interfaces.."
 cat /mnt/pxeapp/etc/network/interfaces >> /tmp/interfaces
@@ -150,7 +156,7 @@ dhcp-boot=pxelinux.0
 enable-tftp
 tftp-root=/srv/tftproot
 
-dhcp-host=${INFRA_MAC},hostname,${INFRA}
+dhcp-host=${INFRA_MAC},crowbar,${INFRA}
 EOF
 mv /tmp/dnsmasq.conf /mnt/pxeapp/etc/dnsmasq.conf
 rm -rf /tmp/dnsmasq.conf
