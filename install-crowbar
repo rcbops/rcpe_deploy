@@ -3,8 +3,9 @@
 set -e
 set -u
 
+NBD_DEVICE=/dev/nbd1
+
 apt-get install -y kpartx lvm2
-modprobe nbd
 
 mkdir -p /opt/rcb/crowbar
 if [ ! -e ~rcb/crowbar.qcow2 ]; then
@@ -63,7 +64,7 @@ if [ ! -e /opt/rcb/crowbar/crowbar.xml ]; then
     <interface type='bridge'>
       <source bridge='br0'/>
       <target dev='vnet0'/>
-      <model type='virtio'/>
+      <model type='e1000'/>
       <alias name='net0'/>
     </interface>
     <interface type='bridge'>
@@ -131,22 +132,30 @@ if [ ! -e ~rcb/network.json ]; then
 fi
 
 # mount the disk image and insert the json
-sleep 10
+# gawd qemu-nbd is suck
+qemu-nbd -d ${NBD_DEVICE}
+qemu-nbd -d ${NBD_DEVICE}
+qemu-nbd -d ${NBD_DEVICE}
+qemu-nbd -d ${NBD_DEVICE}
 
-qemu-nbd -c /dev/nbd0 /opt/rcb/crowbar/crowbar.qcow2
+rmmod nbd
+sleep 2
+modprobe nbd
+
+sleep 2
+qemu-nbd -c ${NBD_DEVICE} /opt/rcb/crowbar/crowbar.qcow2
 
 sleep 10
+kpartx -a ${NBD_DEVICE}
+sleep 5
 pvscan
 sleep 5
 lvscan
 sleep 5
 lvchange -ay /dev/unassigned-hostname/root
 lvchange -ay /dev/unassigned-hostname/swap_1
-
-# shep this shit up
 sleep 5
 
-# on ubuntu, lvm automatically gets assembled, so we don't have to scan
 mkdir -p /mnt/crowbar
 mount /dev/mapper/unassigned--hostname-root /mnt/crowbar
 cp network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
@@ -156,8 +165,9 @@ auto  lo
 iface lo inet loopback
 
 auto eth0
-iface eth0 inet manual
-    post-up ifconfig eth0 up
+iface eth0 inet static
+    address 172.31.0.10
+    netmask 255.255.255.0
 
 auto eth1
 iface eth1 inet static
@@ -169,12 +179,16 @@ wget https://github.com/pmullaney/barclamp-deployer/raw/62fa46f53460fb7ff220d289
 
 umount /mnt/crowbar
 
-sudo lvchange -an /dev/unassigned-hostname/root
-sudo lvchange -an /dev/unassigned-hostname/swap_1
+lvchange -an /dev/unassigned-hostname/root
+lvchange -an /dev/unassigned-hostname/swap_1
 
-qemu-nbd -d /dev/nbd0
+kpartx -d ${NBD_DEVICE}
+qemu-nbd -d ${NBD_DEVICE}
 
 echo "Go nuts."
 
 # Remove from rc.local
 sed -i '/install-crowbar/d' /etc/rc.local
+
+virsh start crowbar
+
