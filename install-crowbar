@@ -3,7 +3,10 @@
 set -e
 set -u
 
+sleep 60
+
 NBD_DEVICE=/dev/nbd1
+source .creds
 
 apt-get install -y kpartx lvm2
 
@@ -70,7 +73,7 @@ if [ ! -e /opt/rcb/crowbar/crowbar.xml ]; then
     <interface type='bridge'>
       <source bridge='crowbarbr0'/>
       <target dev='vnet1'/>
-      <model type='virtio'/>
+      <model type='e1000'/>
       <alias name='net1'/>
     </interface>
     <serial type='pty'>
@@ -159,6 +162,8 @@ sleep 5
 mkdir -p /mnt/crowbar
 mount /dev/mapper/unassigned--hostname-root /mnt/crowbar
 cp /home/rcb/network.json /mnt/crowbar/opt/dell/barclamps/network/chef/data_bags/crowbar/bc-template-network.json 
+cp /home/rcb/firstboot.sh /mnt/crowbar/home/crowbar/firstboot.sh
+sed -i '/^exit/i /bin/bash /home/crowbar/firstboot.sh >> /var/log/firstboot.log 2>&1' /mnt/crowbar/etc/rc.local
 
 cat > /mnt/crowbar/etc/network/interfaces <<EOF
 auto  lo
@@ -191,10 +196,7 @@ lvchange -an /dev/unassigned-hostname/swap_1
 kpartx -d ${NBD_DEVICE}
 qemu-nbd -d ${NBD_DEVICE}
 
-echo "Go nuts."
-
 # Remove from rc.local
 sed -i '/install-crowbar/d' /etc/rc.local
 
 virsh start crowbar
-
