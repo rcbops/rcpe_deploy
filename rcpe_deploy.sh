@@ -4,7 +4,7 @@ set -e
 set -x
 
 # remove me when done tsting
-PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
+# PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
 #PXE_XML_URL=file:///opt/rcb/pxeappliance-dist.xml
 
 PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
@@ -20,12 +20,12 @@ sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' /etc/sysctl.conf
 sysctl -p /etc/sysctl.conf
 
 # Check for/Generate ssh key
-if [ ! -f /home/openstack/.ssh/id_rsa.pub ]; then
-    ssh-keygen -t rsa -f /home/openstack/.ssh/id_rsa -N '' -q
+if [ ! -f /home/${USER}/.ssh/id_rsa.pub ]; then
+    ssh-keygen -t rsa -f /home/${USER}/.ssh/id_rsa -N '' -q
 fi
 
-chown -R openstack: /home/openstack/.ssh
-chmod -R go-rwx /home/openstack/.ssh
+chown -R ${USER}:${USER} /home/${USER}/.ssh
+chmod -R go-rwx /home/${USER}/.ssh
 
 # Remove old deployrc
 if [ -f .deployrc ]; then
@@ -39,7 +39,11 @@ for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMES
 # Source .deployrc
 source .deployrc
 
+# Install necessary packages
+apt-get install -y libvirt-bin ipmitool curl qemu-kvm
+
 # Download pxeappliance image
+mkdir -p /opt/rcb
 echo "Downloading pxeappliance from cloud files.."
 curl -o /opt/rcb/pxeappliance.qcow2 ${PXE_IMAGE_URL}
 curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
@@ -65,7 +69,7 @@ sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/def
 sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-PUBKEY=`cat /home/openstack/.ssh/id_rsa.pub`
+PUBKEY=`cat /home/${USER}/.ssh/id_rsa.pub`
 sed -i "/^#d-i preseed\/late_command string/a d-i preseed\/late_command string wget http:\/\/${PXEAPP}\/post_install.sh -O \/target\/root\/post_install.sh; chmod a+x \/target\/root\/post_install.sh; chroot \/target \/root\/post_install.sh" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 
@@ -76,17 +80,17 @@ echo "nameserver 64.39.2.170" >> /mnt/pxeapp/etc/resolv.conf
 # Create post_install.sh and move to apache dir for later..
 cat >post_install.sh << EOF
 #!/bin/bash
-mkdir /home/rcb/.ssh
-chmod -R 700 /home/rcb/.ssh
-echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
-chmod -R 600 /home/rcb/.ssh/authorized_keys
-chown -R rcb:rcb /home/rcb/.ssh/
-wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
-wget -O /home/rcb/network.json http://${PXEAPP}/network.json
-wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
-chown rcb:rcb /home/rcb/install-crowbar
-chmod ug+x /home/rcb/install-crowbar
-sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
+mkdir /home/${USER}/.ssh
+chmod -R 700 /home/${USER}/.ssh
+echo '${PUBKEY}' >> /home/${USER}/.ssh/authorized_keys
+chmod -R 600 /home/${USER}/.ssh/authorized_keys
+chown -R rcb:rcb /home/${USER}/.ssh/
+wget -O /home/${USER}/install-crowbar http://${PXEAPP}/install-crowbar
+wget -O /home/${USER}/network.json http://${PXEAPP}/network.json
+wget -O /home/${USER}/firstboot.sh http://${PXEAPP}/firstboot.sh
+chown rcb:rcb /home/${USER}/install-crowbar
+chmod ug+x /home/${USER}/install-crowbar
+sed -i '/^exit/i /bin/bash /home/${USER}/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -121,7 +125,7 @@ EOF
 cat >firstboot.sh << EOF
 #!/bin/bash
 mkdir /home/crowbar/.ssh
-echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
+echo '${PUBKEY}' >> /home/${USER}/.ssh/authorized_keys
 chown -R 1000:1000 /home/crowbar/.ssh
 chmod -R 0700 /home/crowbar/.ssh
 
@@ -230,12 +234,12 @@ while [ $count -lt 30 ]; do
 done
 
 # Transfer Crowbar install script to admin node
-# if [ -f /home/openstack/.ssh/known_hosts ]; then
+# if [ -f /home/${USER}/.ssh/known_hosts ]; then
     # could probably just whack it... we're unknown hosting to /dev/null
-    # ssh-keygen -f /home/openstack/.ssh/known_hosts -R 172.31.0.9
+    # ssh-keygen -f /home/${USER}/.ssh/known_hosts -R 172.31.0.9
 # fi
 
-# ssh -i /home/openstack/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+# ssh -i /home/${USER}/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
