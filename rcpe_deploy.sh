@@ -10,7 +10,7 @@ set -x
 PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 
-# NOTE: You must create a .creds file with DRAC USER and PASSWORD
+# NOTE: You must create a .creds file with DRAC SUDO_USER and PASSWORD
 SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
 
 # Prepare bastion interface/iptables
@@ -20,12 +20,12 @@ sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' /etc/sysctl.conf
 sysctl -p /etc/sysctl.conf
 
 # Check for/Generate ssh key
-if [ ! -f /home/${USER}/.ssh/id_rsa.pub ]; then
-    ssh-keygen -t rsa -f /home/${USER}/.ssh/id_rsa -N '' -q
+if [ ! -f /home/${SUDO_USER}/.ssh/id_rsa.pub ]; then
+    ssh-keygen -t rsa -f /home/${SUDO_USER}/.ssh/id_rsa -N '' -q
 fi
 
-chown -R ${USER}:${USER} /home/${USER}/.ssh
-chmod -R go-rwx /home/${USER}/.ssh
+chown -R ${SUDO_USER}:${SUDO_USER} /home/${SUDO_USER}/.ssh
+chmod -R go-rwx /home/${SUDO_USER}/.ssh
 
 # Remove old deployrc
 if [ -f .deployrc ]; then
@@ -69,7 +69,7 @@ sed -i "s/<nameserver>/${NAMESERVER}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/def
 sed -i "s/<infra ip>/${INFRA}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 sed -i "s/<netmask>/${NETMASK}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
-PUBKEY=`cat /home/${USER}/.ssh/id_rsa.pub`
+PUBKEY=`cat /home/${SUDO_USER}/.ssh/id_rsa.pub`
 sed -i "/^#d-i preseed\/late_command string/a d-i preseed\/late_command string wget http:\/\/${PXEAPP}\/post_install.sh -O \/target\/root\/post_install.sh; chmod a+x \/target\/root\/post_install.sh; chroot \/target \/root\/post_install.sh" /mnt/pxeapp/var/www/preseed.txt
 sed -i "s/<pxeapp>/${PXEAPP}/" /mnt/pxeapp/srv/tftproot/pxelinux.cfg/default
 
@@ -80,17 +80,17 @@ echo "nameserver 64.39.2.170" >> /mnt/pxeapp/etc/resolv.conf
 # Create post_install.sh and move to apache dir for later..
 cat >post_install.sh << EOF
 #!/bin/bash
-mkdir /home/${USER}/.ssh
-chmod -R 700 /home/${USER}/.ssh
-echo '${PUBKEY}' >> /home/${USER}/.ssh/authorized_keys
-chmod -R 600 /home/${USER}/.ssh/authorized_keys
-chown -R rcb:rcb /home/${USER}/.ssh/
-wget -O /home/${USER}/install-crowbar http://${PXEAPP}/install-crowbar
-wget -O /home/${USER}/network.json http://${PXEAPP}/network.json
-wget -O /home/${USER}/firstboot.sh http://${PXEAPP}/firstboot.sh
-chown rcb:rcb /home/${USER}/install-crowbar
-chmod ug+x /home/${USER}/install-crowbar
-sed -i '/^exit/i /bin/bash /home/${USER}/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
+mkdir /home/${SUDO_USER}/.ssh
+chmod -R 700 /home/${SUDO_USER}/.ssh
+echo '${PUBKEY}' >> /home/${SUDO_USER}/.ssh/authorized_keys
+chmod -R 600 /home/${SUDO_USER}/.ssh/authorized_keys
+chown -R rcb:rcb /home/${SUDO_USER}/.ssh/
+wget -O /home/${SUDO_USER}/install-crowbar http://${PXEAPP}/install-crowbar
+wget -O /home/${SUDO_USER}/network.json http://${PXEAPP}/network.json
+wget -O /home/${SUDO_USER}/firstboot.sh http://${PXEAPP}/firstboot.sh
+chown rcb:rcb /home/${SUDO_USER}/install-crowbar
+chmod ug+x /home/${SUDO_USER}/install-crowbar
+sed -i '/^exit/i /bin/bash /home/${SUDO_USER}/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -125,7 +125,7 @@ EOF
 cat >firstboot.sh << EOF
 #!/bin/bash
 mkdir /home/crowbar/.ssh
-echo '${PUBKEY}' >> /home/${USER}/.ssh/authorized_keys
+echo '${PUBKEY}' >> /home/${SUDO_USER}/.ssh/authorized_keys
 chown -R 1000:1000 /home/crowbar/.ssh
 chmod -R 0700 /home/crowbar/.ssh
 
@@ -205,15 +205,15 @@ virsh start pxeappliance
 
 # IPMI infra node
 source .creds
-/usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
-POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
+/usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis bootdev pxe
+POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
 if [ $POWERSTATE == 'on' ]; then
     for i in $(seq 1 5); do 
-        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power cycle
+        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis power cycle
     done
 else
     for i in $(seq 1 5); do 
-       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power on
+       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis power on
     done
 fi
 sleep 10s
@@ -234,12 +234,12 @@ while [ $count -lt 30 ]; do
 done
 
 # Transfer Crowbar install script to admin node
-# if [ -f /home/${USER}/.ssh/known_hosts ]; then
+# if [ -f /home/${SUDO_USER}/.ssh/known_hosts ]; then
     # could probably just whack it... we're unknown hosting to /dev/null
-    # ssh-keygen -f /home/${USER}/.ssh/known_hosts -R 172.31.0.9
+    # ssh-keygen -f /home/${SUDO_USER}/.ssh/known_hosts -R 172.31.0.9
 # fi
 
-# ssh -i /home/${USER}/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+# ssh -i /home/${SUDO_USER}/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
