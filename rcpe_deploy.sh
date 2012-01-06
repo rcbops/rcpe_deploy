@@ -52,6 +52,8 @@ curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
 # Mount image
 echo "Mounting pxeppliance qcow.."
 modprobe nbd max_part=8
+modprobe kvm
+modprobe kvm_intel
 qemu-nbd -c /dev/nbd0 /opt/rcb/pxeappliance-dist.qcow2
 
 sleep 3
