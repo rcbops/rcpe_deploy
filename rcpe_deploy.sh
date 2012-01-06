@@ -44,6 +44,7 @@ apt-get install -y libvirt-bin ipmitool curl qemu-kvm
 
 # Download pxeappliance image
 mkdir -p /opt/rcb
+mkdir -p /mnt/pxeapp
 echo "Downloading pxeappliance from cloud files.."
 curl -o /opt/rcb/pxeappliance.qcow2 ${PXE_IMAGE_URL}
 curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
