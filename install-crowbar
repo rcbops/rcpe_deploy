@@ -3,10 +3,10 @@
 set -e
 set -u
 
+# Start by shepping it up so the rest of the script works
 sleep 60
 
 NBD_DEVICE=/dev/nbd1
-source .creds
 
 apt-get install -y kpartx lvm2
 
