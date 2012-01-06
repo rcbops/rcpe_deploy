@@ -175,7 +175,7 @@ dhcp-boot=pxelinux.0
 enable-tftp
 tftp-root=/srv/tftproot
 
-dhcp-host=${INFRA_MAC},crowbar,${INFRA}
+dhcp-host=${INFRA_MAC},adminnode,${INFRA}
 EOF
 mv /tmp/dnsmasq.conf /mnt/pxeapp/etc/dnsmasq.conf
 rm -rf /tmp/dnsmasq.conf
