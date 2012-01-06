@@ -10,7 +10,7 @@ set -x
 PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 
-# NOTE: You must create a .creds file with DRAC SUDO_USER and PASSWORD
+# NOTE: You must create a .creds file with DRAC USER and PASSWORD
 SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
 
 # Prepare bastion interface/iptables
@@ -80,17 +80,17 @@ echo "nameserver 64.39.2.170" >> /mnt/pxeapp/etc/resolv.conf
 # Create post_install.sh and move to apache dir for later..
 cat >post_install.sh << EOF
 #!/bin/bash
-mkdir /home/${SUDO_USER}/.ssh
-chmod -R 700 /home/${SUDO_USER}/.ssh
-echo '${PUBKEY}' >> /home/${SUDO_USER}/.ssh/authorized_keys
-chmod -R 600 /home/${SUDO_USER}/.ssh/authorized_keys
-chown -R rcb:rcb /home/${SUDO_USER}/.ssh/
-wget -O /home/${SUDO_USER}/install-crowbar http://${PXEAPP}/install-crowbar
-wget -O /home/${SUDO_USER}/network.json http://${PXEAPP}/network.json
-wget -O /home/${SUDO_USER}/firstboot.sh http://${PXEAPP}/firstboot.sh
-chown rcb:rcb /home/${SUDO_USER}/install-crowbar
-chmod ug+x /home/${SUDO_USER}/install-crowbar
-sed -i '/^exit/i /bin/bash /home/${SUDO_USER}/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
+mkdir /home/rcb/.ssh
+chmod -R 700 /home/rcb/.ssh
+echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
+chmod -R 600 /home/rcb/.ssh/authorized_keys
+chown -R rcb:rcb /home/rcb/.ssh/
+wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
+wget -O /home/rcb/network.json http://${PXEAPP}/network.json
+wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
+chown rcb:rcb /home/rcb/install-crowbar
+chmod ug+x /home/rcb/install-crowbar
+sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -125,7 +125,7 @@ EOF
 cat >firstboot.sh << EOF
 #!/bin/bash
 mkdir /home/crowbar/.ssh
-echo '${PUBKEY}' >> /home/${SUDO_USER}/.ssh/authorized_keys
+echo '${PUBKEY}' >> /home/crowbar/.ssh/authorized_keys
 chown -R 1000:1000 /home/crowbar/.ssh
 chmod -R 0700 /home/crowbar/.ssh
 
@@ -205,15 +205,15 @@ virsh start pxeappliance
 
 # IPMI infra node
 source .creds
-/usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis bootdev pxe
-POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
+/usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
+POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
 if [ $POWERSTATE == 'on' ]; then
     for i in $(seq 1 5); do 
-        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis power cycle
+        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power cycle
     done
 else
     for i in $(seq 1 5); do 
-       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DSUDO_USERNAME -P $DPASSWORD chassis power on
+       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power on
     done
 fi
 sleep 10s
