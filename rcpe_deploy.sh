@@ -46,7 +46,7 @@ apt-get install -y libvirt-bin ipmitool curl qemu-kvm
 mkdir -p /opt/rcb
 mkdir -p /mnt/pxeapp
 echo "Downloading pxeappliance from cloud files.."
-curl -o /opt/rcb/pxeappliance.qcow2 ${PXE_IMAGE_URL}
+curl -o /opt/rcb/pxeappliance-dist.qcow2 ${PXE_IMAGE_URL}
 curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
 
 # Mount image
@@ -198,6 +198,9 @@ sed -i /mnt/pxeapp/boot/grub/grub.cfg -e 's#quiet$#quiet ipv6.disable=1#'
 echo "Unmounting pxeappliance image.."
 umount /mnt/pxeapp
 qemu-nbd -d /dev/nbd0
+
+# Restart libvirt-bin to avoid hvm errors..
+/etc/init.d/libvirt-bin restart
 
 # Register domain/ boot pxeapp
 echo "Defining pxeappliance domain and starting appliance.."
