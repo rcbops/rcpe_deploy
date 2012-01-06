@@ -34,7 +34,7 @@ fi
 
 # Parse json file, extract bastion/pxeapp/infra/crowbar addresses, export to .deployrc
 echo "Extracting json values to environment variables.."
-for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
+for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
 
 # Source .deployrc
 source .deployrc
@@ -83,9 +83,10 @@ chmod -R 600 /home/rcb/.ssh/authorized_keys
 chown -R rcb:rcb /home/rcb/.ssh/
 wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
 wget -O /home/rcb/network.json http://${PXEAPP}/network.json
+wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
-sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar' /etc/rc.local &>/var/log/install-crowbar.log
+sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -115,8 +116,26 @@ iface crowbarbr0 inet static
 EOFNET
 echo 'nameserver ${NAMESERVER}' > /etc/resolv.conf
 EOF
+
+# Crowbar Appliance firstboot 
+cat >firstboot.sh << EOF
+#!/bin/bash
+mkdir /home/crowbar/.ssh
+echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
+chown -R 1000:1000 /home/crowbar/.ssh
+chmod -R 0700 /home/crowbar/.ssh
+
+# INSTALL CROWBAR
+./tftpboot/ubuntu_dvd/extra/install ${CBFQDN}
+
+# REMOVE FIRSTBOOT
+chmod -R a+r /etc/gemrc
+sed -i '/\/tftpboot\/ubuntu_dvd\/extra\/firstboot.sh/d' /etc/rc.local
+EOF
+
 cp post_install.sh /mnt/pxeapp/var/www/post_install.sh
 cp network.json /mnt/pxeapp/var/www/network.json
+cp firstboot.sh /mnt/pxeapp/var/www/firstboot.sh
 
 # Copy crowbar install script to the apache dir for later..
 cp install-crowbar /mnt/pxeapp/var/www/install-crowbar
@@ -211,12 +230,12 @@ while [ $count -lt 30 ]; do
 done
 
 # Transfer Crowbar install script to admin node
-if [ -f /home/openstack/.ssh/known_hosts ]; then
+# if [ -f /home/openstack/.ssh/known_hosts ]; then
     # could probably just whack it... we're unknown hosting to /dev/null
-    ssh-keygen -f /home/openstack/.ssh/known_hosts -R 172.31.0.9
-fi
+    # ssh-keygen -f /home/openstack/.ssh/known_hosts -R 172.31.0.9
+# fi
 
-ssh -i /home/openstack/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
+# ssh -i /home/openstack/.ssh/id_rsa.pub ${SSH_OPTS} rcb@${INFRA} 'ls -al'
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
