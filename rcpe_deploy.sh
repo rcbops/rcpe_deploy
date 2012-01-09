@@ -261,7 +261,7 @@ while [ $count -lt 30 ]; do
     if ( nc ${CROWBAR} 3000 -w 1 -q 0 < /dev/null ); then
         break
     fi
-    if [ $count -eq 30]; then
+    if [ $count -eq 30 ]; then
         log "Crowbar vm did not come up."
         exit 1
     fi
@@ -276,7 +276,7 @@ while [ $count -lt 30 ]; do
     if ( 'ssh -lcrowbar 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U crowbar -P crowbar elements | wc -l"' == ${NODECOUNT} ); then
         break
     fi
-    if [ $count -eq 30]; then
+    if [ $count -eq 30 ]; then
         log "Some crowbar nodes did not come up."
         exit 1
     fi
