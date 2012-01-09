@@ -96,6 +96,7 @@ wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
+chmod -R a+r /etc/gemrc
 sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
