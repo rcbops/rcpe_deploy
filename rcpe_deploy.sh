@@ -274,7 +274,8 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    if ( 'ssh -lcrowbar 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U crowbar -P crowbar elements | wc -l"' == ${NODECOUNT} ); then
+    ELEMENTS=`ssh -lcrowbar 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U crowbar -P crowbar elements | wc -l"`
+    if ( ${ELEMENTS} == ${NODECOUNT} ); then
         break
     fi
     if [ $count -eq 30 ]; then
