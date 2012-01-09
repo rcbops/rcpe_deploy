@@ -255,7 +255,7 @@ virsh undefine pxeappliance
 # Giving ~30 minutes
 echo "Waiting for crowbar installation.."
 count=1
-while [ $count -lt 30]; do
+while [ $count -lt 30 ]; do
     count=$((count +1))
     sleep 60s
     if ( nc ${CROWBAR} 3000 -w 1 -q 0 < /dev/null ); then
@@ -270,7 +270,7 @@ done
 # Since all nodes should be sitting in PXE we will wait a maximum of 30 minutes for all nodes to register
 echo "Waiting for all crowbar managed nodes to register.."
 count=1
-while [ $count -lt 30]; do 
+while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
     if ( 'ssh -lcrowbar 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U crowbar -P crowbar elements | wc -l"' == ${NODECOUNT} ); then
