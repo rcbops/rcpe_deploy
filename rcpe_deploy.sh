@@ -27,7 +27,7 @@ function crowbar_proposal() {
     log " Service: ${service}"
     log " Action: ${action}"
 
-    if ! ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
+    if ! ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
         log "Unable to ${action} the ${service} Proposal"
         exit 1
     fi
@@ -47,7 +47,7 @@ function crowbar_proposal_status() {
     while [ $count -lt $wait_timer ]; do
         count=$(( count + 1 ))
         sleep 60s
-        # if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
+        # if ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
         if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
             log "${service} proposal sucessfully applied"
             break
@@ -324,7 +324,7 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    ELEMENTS=`sudo -u rcb ssh ${SSH_OPTS} -l ${CUSERNAME} 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l"`
+    ELEMENTS=`sudo -u rcb ssh ${SSH_OPTS} ${CUSERNAME}@172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l"`
     if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
