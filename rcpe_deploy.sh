@@ -11,7 +11,8 @@ PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_g
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
-SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i /home/$SUDO_USER/.ssh/id_rsa.pub'
+
+SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
 
 # Prepare bastion interface/iptables
 echo "Setting up iptables and system forwarding for eth0.."
@@ -275,8 +276,8 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    ELEMENTS=`ssh ${SSH_OPTS} -lcrowbar 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P CPASSWORD elements | wc -l"`
-    if [ ${ELEMENTS} == ${NODECOUNT} ]; then
+    ELEMENTS=`sudo -u rcb ssh ${SSH_OPTS} -l ${CUSERNAME} 172.31.0.10 "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l"`
+    if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
     if [ $count -eq 30 ]; then
