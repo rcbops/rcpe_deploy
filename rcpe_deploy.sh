@@ -324,7 +324,7 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    ELEMENTS=`sudo -u rcb ssh -- ${SSH_OPTS} ${CUSERNAME}\@${CROWBAR} "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l"`
+    ELEMENTS=$( sudo -u rcb -- ssh ${CUSERNAME}\@${CROWBAR} -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l" )
     if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
