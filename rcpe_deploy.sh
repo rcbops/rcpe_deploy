@@ -3,12 +3,61 @@
 # set -e
 # set -x
 
+## GRAB DRAC AND CROWBAR CREDENTIALS:
+## File should contain DUSERNAME, DPASSWORD, CUSERNAME, CPASSWORD
+source .creds
+
 # remove me when done tsting
 # PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
 #PXE_XML_URL=file:///opt/rcb/pxeappliance-dist.xml
 
 PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
+
+# FOR CROWBAR PROPOSALS
+PROPOSAL_NAME="openstack"
+
+function crowbar_proposal() {
+    # $1 - Service Name
+    # $2 - Action (create|commit)
+    service=$1
+    action=$2
+    cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
+    log "Executing crowbar_proposal using:"
+    log " Service: ${service}"
+    log " Action: ${action}"
+
+    if ! ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
+        log "Unable to ${action} the ${service} Proposal"
+        exit 1
+    fi
+}
+
+function crowbar_proposal_status() {
+    # $1 - Service Name
+    # $2 - Wait Time
+    service=$1
+    wait_timer=${2:-15} # Default to 15 minutes if no wait_time provided
+    cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
+    log "Executing crowbar_proposal using:"
+    log " Service: ${service}"
+    log " Wait Time: ${wait_timer}"
+
+    count=1
+    while [ $count -lt $wait_timer ]; do
+        count=$(( count + 1 ))
+        sleep 60s
+        # if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
+        if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
+            log "${service} proposal sucessfully applied"
+            break
+        fi
+        if [ $count == $wait_timer ]; then
+            log "${service} proposal not applied"
+            exit 1
+        fi
+    done
+}
 
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
 
@@ -219,7 +268,6 @@ virsh start pxeappliance
 
 # IPMI infra node
 echo "PXE boot admin/infra node.."
-source .creds
 POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
 if [ $POWERSTATE == 'on' ]; then
     for i in $(seq 1 5); do 
@@ -285,3 +333,42 @@ while [ $count -lt 30 ]; do
         exit 1
     fi
 done 
+
+##################################################
+# BEGIN OPENSTACK PROPOSALS
+##################################################
+
+##################################################
+# Push MYSQL Proposal
+crowbar_proposal "mysql" "create"
+crowbar_proposal "mysql" "commit"
+crowbar_proposal_status "mysql" 30
+##################################################
+
+##################################################
+# Push the Keystone Proposal
+crowbar_proposal "keystone" "create"
+crowbar_proposal "keystone" "commit"
+crowbar_proposal_status "keystone"
+##################################################
+
+##################################################
+# Push the Glance Proposal
+crowbar_proposal "glance" "create"
+crowbar_proposal "glance" "commit"
+crowbar_proposal_status "glance"
+##################################################
+
+##################################################
+# Push the Nova Proposal
+crowbar_proposal "nova" "create"
+crowbar_proposal "nova" "commit"
+crowbar_proposal_status "nova" 30
+##################################################
+
+##################################################
+# Push the Dash Proposal
+crowbar_proposal "nova_dashboard" "create"
+crowbar_proposal "nova_dashboard" "commit"
+crowbar_proposal_status "nova_dashboard"
+##################################################
