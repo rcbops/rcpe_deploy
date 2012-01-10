@@ -11,7 +11,7 @@ PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_g
 PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
-SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i /home/${SUDO_USER}/.ssh/id_rsa.pub'
+SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i /home/$SUDO_USER/.ssh/id_rsa.pub'
 
 # Prepare bastion interface/iptables
 echo "Setting up iptables and system forwarding for eth0.."
