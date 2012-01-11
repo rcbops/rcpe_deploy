@@ -28,9 +28,9 @@ if [ ! -e /opt/rcb/crowbar/crowbar.xml ]; then
     cat > /opt/rcb/crowbar/crowbar.xml <<EOF
 <domain type='kvm'>
   <name>crowbar</name>
-  <memory>2097152</memory>
-  <currentMemory>2097152</currentMemory>
-  <vcpu>1</vcpu>
+  <memory>8388608</memory>
+  <currentMemory>8388608</currentMemory>
+  <vcpu>2</vcpu>
   <os>
     <type arch='x86_64' machine='pc-0.12'>hvm</type>
     <boot dev='hd'/>
