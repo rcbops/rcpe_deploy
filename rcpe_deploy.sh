@@ -61,7 +61,7 @@ function crowbar_proposal_status() {
 
 # NOTE: You must create a .creds file with DRAC USER and PASSWORD
 
-SSH_OPTS='-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
+SSH_OPTS="-n -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 # Prepare bastion interface/iptables
 echo "Setting up iptables and system forwarding for eth0.."
@@ -324,8 +324,7 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    echo -ne 'sudo -u rcb -- ssh ${CUSERNAME}\@${CROWBAR} ${SSH_OPTS} "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l"'
-    ELEMENTS=$( sudo -u rcb -- ssh ${CUSERNAME}\@${CROWBAR} -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "/opt/dell/bin/crowbar_crowbar -U $CUSERNAME -P $CPASSWORD elements | wc -l" )
+    ELEMENTS=$(su -l rcb -c 'ssh ${SSH_OPTS} crowbar@${CROWBAR} "/opt/dell/bin/crowbar_crowbar -U ${CUSERNAME} -P ${CPASSWORD} elements | wc -l"')
     if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
