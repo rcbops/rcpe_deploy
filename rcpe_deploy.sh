@@ -23,12 +23,12 @@ function crowbar_proposal() {
     service=$1
     action=$2
     cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
-    log "Executing crowbar_proposal using:"
-    log " Service: ${service}"
-    log " Action: ${action}"
+    echo "Executing crowbar_proposal using:"
+    echo " Service: ${service}"
+    echo " Action: ${action}"
 
     if ! ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
-        log "Unable to ${action} the ${service} Proposal"
+        echo "Unable to ${action} the ${service} Proposal"
         exit 1
     fi
 }
@@ -39,9 +39,9 @@ function crowbar_proposal_status() {
     service=$1
     wait_timer=${2:-15} # Default to 15 minutes if no wait_time provided
     cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
-    log "Executing crowbar_proposal using:"
-    log " Service: ${service}"
-    log " Wait Time: ${wait_timer}"
+    echo "Executing crowbar_proposal using:"
+    echo " Service: ${service}"
+    echo " Wait Time: ${wait_timer}"
 
     count=1
     while [ $count -lt $wait_timer ]; do
@@ -49,11 +49,11 @@ function crowbar_proposal_status() {
         sleep 60s
         # if ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
         if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
-            log "${service} proposal sucessfully applied"
+            echo "${service} proposal sucessfully applied"
             break
         fi
         if [ $count == $wait_timer ]; then
-            log "${service} proposal not applied"
+            echo "${service} proposal not applied"
             exit 1
         fi
     done
@@ -147,7 +147,7 @@ wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
 chown rcb:rcb /home/rcb/install-crowbar
 chmod ug+x /home/rcb/install-crowbar
 chmod -R a+r /etc/gemrc
-sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.log 2>&1' /etc/rc.local
+sed -i '/^exit/i /bin/bash /home/rcb/install-crowbar >> /var/log/install-crowbar.echo 2>&1' /etc/rc.local
 cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
@@ -293,7 +293,7 @@ while [ $count -lt 30 ]; do
         break
     fi
     if [ $count -eq 30 ]; then
-        log "Admin/Infra node is not network accessible"
+        echo "Admin/Infra node is not network accessible"
         exit 1
     fi
 done
@@ -313,7 +313,7 @@ while [ $count -lt 30 ]; do
         break
     fi
     if [ $count -eq 30 ]; then
-        log "Crowbar vm did not come up."
+        echo "Crowbar vm did not come up."
         exit 1
     fi
 done
@@ -324,12 +324,12 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    ELEMENTS=$(sudo -u rcb -- ssh ${SSH_OPTS} ${CUSERNAME}@${CROWBAR} "/opt/dell/bin/crowbar_crowbar -U ${CUSERNAME} -P ${CPASSWORD} elements | wc -l")
+    ELEMENTS=$(sudo -u rcb -- ssh ${SSH_OPTS} ${CUSERNAME}@${CROWBAR} "/opt/dell/bin/crowbar_node_state -U ${CUSERNAME} -P ${CPASSWORD} status --no-ready | wc -l")
     if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
     if [ $count -eq 30 ]; then
-        log "Some crowbar nodes did not come up."
+        echo "Some crowbar nodes did not come up."
         exit 1
     fi
 done 
