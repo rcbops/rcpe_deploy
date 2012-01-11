@@ -27,7 +27,7 @@ function crowbar_proposal() {
     echo " Service: ${service}"
     echo " Action: ${action}"
 
-    if ! ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
+    if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
         echo "Unable to ${action} the ${service} Proposal"
         exit 1
     fi
@@ -48,7 +48,7 @@ function crowbar_proposal_status() {
         count=$(( count + 1 ))
         sleep 60s
         # if ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
-        if ( ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
+        if ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
             echo "${service} proposal sucessfully applied"
             break
         fi
