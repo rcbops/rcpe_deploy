@@ -269,7 +269,7 @@ virsh start pxeappliance
 # IPMI infra node
 echo "PXE boot admin/infra node.."
 POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
-if [ $POWERSTATE == 'on' ]; then
+if [ "$POWERSTATE" == 'on' ]; then
     for i in $(seq 1 5); do 
         /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
         /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power cycle
