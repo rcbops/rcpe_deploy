@@ -152,7 +152,7 @@ cat > /etc/network/interfaces <<EOFNET
 auto lo
 iface lo inet loopback
 
-auth eth0
+auto eth0
 iface eth0 inet manual
     post-up ifconfig eth0 up
 
