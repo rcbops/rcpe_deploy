@@ -267,6 +267,24 @@ virsh define /opt/rcb/pxeappliance.xml
 virsh start pxeappliance
 
 # IPMI infra node
+INFRA_DRAC_PORT=623
+echo "checking that the admin/infra node ipmi is accessible..."
+count=0
+while [ "$count" -lt 5 ]; do
+    count=$(( count + 1 ))
+if ( nc ${INFRA_DRAC} ${INFRA_DRAC_PORT} -w 1 -q 0 < /dev/null ); then
+        echo "connected to admin/infra ipmi. Continuing..."
+        break
+    else
+        echo "failed to connect to admin/infra ipmi on pass $count of 5"
+        sleep 10
+    fi
+    if [ "$count" -eq 5 ]; then
+        echo "admin/infra ipmi is not accessible - exiting"
+        exit 1
+    fi
+done
+
 echo "PXE boot admin/infra node.."
 POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
 if [ "$POWERSTATE" == 'on' ]; then
