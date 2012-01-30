@@ -7,6 +7,14 @@
 ## File should contain DUSERNAME, DPASSWORD, CUSERNAME, CPASSWORD
 source .creds
 
+## Ensure i'm not already running (Shep protection)
+if [ -f /var/lock/shep_protection.lock ];
+    echo "Running already"
+    exit 1
+else
+    touch /var/lock/shep_protection.lock
+fi
+
 # remove me when done tsting
 # PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
 #PXE_XML_URL=file:///opt/rcb/pxeappliance-dist.xml
@@ -398,3 +406,6 @@ crowbar_proposal "nova_dashboard" "create"
 crowbar_proposal "nova_dashboard" "commit"
 crowbar_proposal_status "nova_dashboard"
 ##################################################
+
+## Remove lock because i'm done.
+rm -rf /var/lock/shep_protection.lock
