@@ -212,7 +212,7 @@ sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/install-crowbar
 # Insert eth0 configuration into /etc/network/interfaces
 echo "Modifying pxeappliance network interfaces.."
 cat /mnt/pxeapp/etc/network/interfaces >> /tmp/interfaces
-cat >>/tmp/interfaces << EOF
+cat >/tmp/interfaces << EOF
 auto eth0
 iface eth0 inet static
     address ${PXEAPP}
@@ -342,7 +342,7 @@ count=1
 while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
-    ELEMENTS=$(sudo -u rcb -- ssh ${SSH_OPTS} ${CUSERNAME}@${CROWBAR} "/opt/dell/bin/crowbar_node_state -U ${CUSERNAME} -P ${CPASSWORD} status --no-ready | wc -l")
+    ELEMENTS=$(sudo -u ${SUDO_USER} -- ssh ${SSH_OPTS} ${CUSERNAME}@${CROWBAR} "/opt/dell/bin/crowbar_node_state -U ${CUSERNAME} -P ${CPASSWORD} status --no-ready | wc -l")
     if [ "$ELEMENTS" == "$NODECOUNT" ]; then
         break
     fi
