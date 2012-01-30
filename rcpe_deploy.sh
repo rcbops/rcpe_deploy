@@ -96,10 +96,18 @@ apt-get install -y libvirt-bin ipmitool curl qemu-kvm
 
 # Download pxeappliance image
 echo "Downloading pxeappliance from cloud files.."
+if [ ! -f /home/${SUDO_USER}/pxeappliance-dist.qcow2 ]; then
+    curl -o /home/${SUDO_USER}/pxeappliance-dist.qcow2 ${PXE_IMAGE_URL}
+fi
+if [ ! -f /home/${SUDO_USER}/pxeappliance.xml ]; then
+    curl -o /home/${SUDO_USER}/pxeappliance.xml ${PXE_XML_URL}
+fi
+
+echo "Moving pxeappliance into place."
 mkdir -p /opt/rcb
 mkdir -p /mnt/pxeapp
-curl -o /opt/rcb/pxeappliance-dist.qcow2 ${PXE_IMAGE_URL}
-curl -o /opt/rcb/pxeappliance.xml ${PXE_XML_URL}
+cp /home/${SUDO_USER}/pxeappliance-dist.qcow2 /opt/rcb/
+cp /home/${SUDO_USER}/pxeappliance.xml /opt/rcb/
 
 # Mount image
 echo "Mounting pxeppliance qcow.."
