@@ -184,8 +184,8 @@ iface br0 inet static
 
 auto crowbarbr0 
 iface crowbarbr0 inet static
-    address 192.168.125.9
-    netmask 255.255.255.0
+    address ${CROWBAR}
+    netmask ${NETMASK}
     bridge_ports none
     bridge_fd 0
     bridge_stp off
