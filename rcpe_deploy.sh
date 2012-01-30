@@ -8,7 +8,7 @@
 source .creds
 
 ## Ensure i'm not already running (Shep protection)
-if [ -f /var/lock/shep_protection.lock ];
+if [ -f /var/lock/shep_protection.lock ]; then
     echo "Running already"
     exit 1
 else
