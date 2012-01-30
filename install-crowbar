@@ -15,6 +15,7 @@ if [ ! -e ~rcb/crowbar.qcow2 ]; then
     echo "Downloading crowbar vm..."
 
     # Testing/Debugging location
+    # cheeseburger
     wget -O /opt/rcb/crowbar/crowbar.qcow2 http://10.127.52.9/crowbar.qcow2
 
     # Fresh build location
@@ -179,9 +180,9 @@ iface lo inet loopback
 
 auto eth0
 iface eth0 inet static
-    address 172.31.0.10
+    address 10.127.52.10
     netmask 255.255.255.0
-    gateway 172.31.0.5
+    gateway 10.127.52.1
 
 auto eth1
 iface eth1 inet static
