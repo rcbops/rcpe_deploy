@@ -157,6 +157,7 @@ chmod -R 700 /home/rcb/.ssh
 echo '${PUBKEY}' >> /home/rcb/.ssh/authorized_keys
 chmod -R 600 /home/rcb/.ssh/authorized_keys
 chown -R rcb:rcb /home/rcb/.ssh/
+wget -O /home/rcb/.deployrc http://${PXEAPP}/deployrc
 wget -O /home/rcb/install-crowbar http://${PXEAPP}/install-crowbar
 wget -O /home/rcb/network.json http://${PXEAPP}/network.json
 wget -O /home/rcb/firstboot.sh http://${PXEAPP}/firstboot.sh
@@ -217,6 +218,7 @@ cp network.json /mnt/pxeapp/var/www/network.json
 cp firstboot.sh /mnt/pxeapp/var/www/firstboot.sh
 
 # Copy crowbar install script to the apache dir for later..
+cp .deployrc /mnt/pxeapp/var/www/deployrc
 cp install-crowbar /mnt/pxeapp/var/www/install-crowbar
 
 # Fix up the install-crowbar
