@@ -85,7 +85,7 @@ fi
 
 # Parse json file, extract bastion/pxeapp/infra/crowbar addresses, export to .deployrc
 echo "Extracting json values to environment variables.."
-for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
+for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" > .deployrc; done
 
 # Source .deployrc
 source .deployrc
@@ -211,7 +211,7 @@ sed -i "s/<gateway>/${GATEWAY}/" /mnt/pxeapp/var/www/install-crowbar
 
 # Insert eth0 configuration into /etc/network/interfaces
 echo "Modifying pxeappliance network interfaces.."
-cat /mnt/pxeapp/etc/network/interfaces >> /tmp/interfaces
+cat /mnt/pxeapp/etc/network/interfaces > /tmp/interfaces
 cat >/tmp/interfaces << EOF
 auto eth0
 iface eth0 inet static
