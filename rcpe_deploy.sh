@@ -37,6 +37,7 @@ function crowbar_proposal() {
 
     if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
         echo "Unable to ${action} the ${service} Proposal"
+        ./cleanup.sh
         exit 1
     fi
 }
@@ -62,6 +63,7 @@ function crowbar_proposal_status() {
         fi
         if [ $count == $wait_timer ]; then
             echo "${service} proposal not applied"
+            ./cleanup.sh
             exit 1
         fi
     done
@@ -311,6 +313,7 @@ while [ $count -lt 30 ]; do
     fi
     if [ $count -eq 30 ]; then
         echo "Admin/Infra node is not network accessible"
+        ./cleanup.sh
         exit 1
     fi
 done
@@ -331,6 +334,7 @@ while [ $count -lt 30 ]; do
     fi
     if [ $count -eq 30 ]; then
         echo "Crowbar vm did not come up."
+        ./cleanup.sh
         exit 1
     fi
 done
@@ -347,6 +351,7 @@ while [ $count -lt 30 ]; do
     fi
     if [ $count -eq 30 ]; then
         echo "Some crowbar nodes did not come up."
+        ./cleanup.sh
         exit 1
     fi
 done 
