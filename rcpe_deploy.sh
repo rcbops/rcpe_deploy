@@ -93,7 +93,7 @@ fi
 
 # Parse json file, extract bastion/pxeapp/infra/crowbar addresses, export to .deployrc
 echo "Extracting json values to environment variables.."
-for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" > .deployrc; done
+for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
 
 # Source .deployrc
 source .deployrc
