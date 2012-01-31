@@ -241,14 +241,6 @@ iface br0 inet static
     bridge_maxwait 0
     bridge_fd 0
 
-auto crowbarbr0 
-iface crowbarbr0 inet static
-    address ${CROWBAR}
-    netmask ${NETMASK}
-    bridge_ports none
-    bridge_fd 0
-    bridge_stp off
-    bridge_maxwait 0
 EOFNET
 echo 'nameserver ${NAMESERVER}' > /etc/resolv.conf
 EOF
