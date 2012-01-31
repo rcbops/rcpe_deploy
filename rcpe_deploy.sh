@@ -1,7 +1,15 @@
-#/bin/bash
+#!/bin/bash
 
+## TURN ON FOR DEBUGGING
 # set -e
 # set -x
+
+## URL's for downloading the PXEAPPLIANCE
+PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
+PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
+
+# FOR CROWBAR PROPOSALS
+PROPOSAL_NAME="openstack"
 
 ## Cleanup function for all events
 function cleanup() {
@@ -35,16 +43,6 @@ if [ -f /var/lock/shep_protection.lock ]; then
 else
     touch /var/lock/shep_protection.lock
 fi
-
-# remove me when done tsting
-# PXE_IMAGE_URL=file:///opt/rcb/pxeappliance-dist.qcow2
-#PXE_XML_URL=file:///opt/rcb/pxeappliance-dist.xml
-
-PXE_IMAGE_URL=${PXE_IMAGE_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance_gold.qcow2}
-PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
-
-# FOR CROWBAR PROPOSALS
-PROPOSAL_NAME="openstack"
 
 function ipmi_pxeboot() {
     POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
