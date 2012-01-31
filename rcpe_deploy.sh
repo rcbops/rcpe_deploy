@@ -281,8 +281,15 @@ qemu-nbd -d /dev/nbd0
 echo "Restart libvirt-bin.."
 /etc/init.d/libvirt-bin restart
 
-# Register domain/ boot pxeapp
+# Register domain / boot pxeapp
 echo "Defining pxeappliance domain and starting appliance.."
+# check if we have a lingering appliance and destroy
+if  virsh dominfo pxeappliance >/dev/null 2>&1; then
+    echo "pxeappliance already exists...destroying first"
+    virsh destroy pxeappliance
+    virsh undefine pxeappliance
+fi
+
 virsh define /opt/rcb/pxeappliance.xml
 virsh start pxeappliance
 
