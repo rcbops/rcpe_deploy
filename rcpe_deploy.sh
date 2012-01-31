@@ -26,6 +26,7 @@ function cleanup() {
 trap cleanup SIGINT
 
 ## GRAB DRAC AND CROWBAR CREDENTIALS:
+## NOTE: You must create a .creds file with DRAC USER and PASSWORD
 ## File should contain DUSERNAME, DPASSWORD, CUSERNAME, CPASSWORD
 DIR="$( cd "$( dirname "$0" )" && pwd )"
 if [ -f $DIR/.creds ]; then
@@ -44,6 +45,7 @@ else
     touch /var/lock/shep_protection.lock
 fi
 
+## Simple function for ipmi boot of infra node
 function ipmi_pxeboot() {
     POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
     if [ "$POWERSTATE" == 'on' ]; then
@@ -59,6 +61,8 @@ function ipmi_pxeboot() {
     fi
 }
 
+## Given x minutes, a node, and a port test response for x minutes. If the port doesn't become available in said time
+## exit and clean up.
 function port_test() {
     # $1 - Minutes to wait
     # $2 - NODE to test
@@ -81,6 +85,8 @@ function port_test() {
     done
 }
 
+## Given a service name and a action create/commit a crowbar proposal. This in effect installs service software on node
+## determined by crowbar discovery.
 function crowbar_proposal() {
     # $1 - Service Name
     # $2 - Action (create|commit)
@@ -98,6 +104,7 @@ function crowbar_proposal() {
     fi
 }
 
+## Given service name and time to wat check the status of the above proposal until Active. 
 function crowbar_proposal_status() {
     # $1 - Service Name
     # $2 - Wait Time
@@ -112,7 +119,6 @@ function crowbar_proposal_status() {
     while [ $count -lt $wait_timer ]; do
         count=$(( count + 1 ))
         sleep 60s
-        # if ( sudo -u rcb ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} list | grep ${PROPOSAL_NAME}" ); then
         if ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
             echo "${service} proposal sucessfully applied"
             break
@@ -125,7 +131,6 @@ function crowbar_proposal_status() {
     done
 }
 
-# NOTE: You must create a .creds file with DRAC USER and PASSWORD
 
 SSH_OPTS="-n -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
@@ -141,6 +146,7 @@ if [ ! -f /home/${SUDO_USER}/.ssh/id_rsa.pub ]; then
     ssh-keygen -t rsa -f /home/${SUDO_USER}/.ssh/id_rsa -N '' -q
 fi
 
+## Install ssh key
 chown -R ${SUDO_USER}:${SUDO_USER} /home/${SUDO_USER}/.ssh
 chmod -R go-rwx /home/${SUDO_USER}/.ssh
 
@@ -342,19 +348,6 @@ sleep 10s
 # This takes ~30 mins
 echo "Waiting for admin node to be accessible.."
 port_test "30" ${INFRA} "22"
-# count=1
-# while [ $count -lt 30 ]; do
-    # count=$(( count + 1 ))
-    # sleep 60s
-    # if ( nc ${INFRA} 22 -w 1 -q 0 < /dev/null ); then
-        # break
-    # fi
-    # if [ $count -eq 30 ]; then
-        # echo "Admin/Infra node is not network accessible"
-        # cleanup
-        # exit 1
-    # fi
-# done
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
@@ -364,19 +357,6 @@ virsh undefine pxeappliance
 # Giving ~30 minutes
 echo "Waiting for crowbar installation.."
 port_test "30" ${CROWBAR} "3000"
-# count=1
-# while [ $count -lt 30 ]; do
-    # count=$((count +1))
-    # sleep 60s
-    # if ( nc ${CROWBAR} 3000 -w 1 -q 0 < /dev/null ); then
-        # break
-    # fi
-    # if [ $count -eq 30 ]; then
-        # echo "Crowbar vm did not come up."
-        # cleanup
-        # exit 1
-    # fi
-# done
 
 # Since all nodes should be sitting in PXE we will wait a maximum of 30 minutes for all nodes to register
 echo "Waiting for all crowbar managed nodes to register.."
@@ -436,5 +416,3 @@ crowbar_proposal_status "nova_dashboard"
 
 ## Cleanup
 cleanup
-
-EOF
