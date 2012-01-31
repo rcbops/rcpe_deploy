@@ -1,8 +1,11 @@
-#!/bin/bash
+#/bin/bash
 
 # set -e
 # set -x
 
+## SET INTERRUPT EXIT
+
+trap cleanup SIGINT
 ## GRAB DRAC AND CROWBAR CREDENTIALS:
 ## File should contain DUSERNAME, DPASSWORD, CUSERNAME, CPASSWORD
 source .creds
@@ -25,6 +28,53 @@ PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 # FOR CROWBAR PROPOSALS
 PROPOSAL_NAME="openstack"
 
+function cleanup() {
+    echo "Exiting..."
+    virsh destroy pxeappliance
+    virsh undefine pxeappliance
+    qemu-nbd -d /dev/nbd0
+    rm -rf /var/lock/shep_protection.lock
+    rm -rf /opt/rcb/*
+    exit $?
+}
+
+function ipmi_pxeboot() {
+    POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
+    if [ "$POWERSTATE" == 'on' ]; then
+        for i in $(seq 1 5); do
+            /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
+            /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power cycle
+        done
+    else
+        for i in $(seq 1 5); do
+           /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
+           /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power on
+        done
+    fi
+}
+
+function port_test() {
+    # $1 - Minutes to wait
+    # $2 - NODE to test
+    # $3 - Port to test (netcat)
+    maxwait=$1
+    node=$2
+    port=$3
+    count=1
+    while [ $count -lt $maxwait ]; do
+        count=$(( count + 1 ))
+        sleep 60s
+        if ( nc $node $port -w 1 -q 0 < /dev/null ); then
+            break
+        fi
+        if [ $count -eq $maxwait ]; then
+            echo "Admin/Infra node is not network accessible"
+            cleanup
+            exit 1
+        fi
+    done
+}
+
 function crowbar_proposal() {
     # $1 - Service Name
     # $2 - Action (create|commit)
@@ -37,7 +87,7 @@ function crowbar_proposal() {
 
     if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
         echo "Unable to ${action} the ${service} Proposal"
-        ./cleanup.sh
+        cleanup
         exit 1
     fi
 }
@@ -63,7 +113,7 @@ function crowbar_proposal_status() {
         fi
         if [ $count == $wait_timer ]; then
             echo "${service} proposal not applied"
-            ./cleanup.sh
+            cleanup
             exit 1
         fi
     done
@@ -287,36 +337,26 @@ virsh define /opt/rcb/pxeappliance.xml
 virsh start pxeappliance
 
 echo "PXE boot admin/infra node.."
-POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
-if [ "$POWERSTATE" == 'on' ]; then
-    for i in $(seq 1 5); do 
-        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
-        /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power cycle
-    done
-else
-    for i in $(seq 1 5); do 
-       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis bootdev pxe
-       /usr/bin/ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis power on
-    done
-fi
+ipmi_pxeboot
 sleep 10s
 
 # WAIT FOR ADMIN NODE TO HAVE SSH
 # This takes ~30 mins
 echo "Waiting for admin node to be accessible.."
-count=1
-while [ $count -lt 30 ]; do
-    count=$(( count + 1 ))
-    sleep 60s
-    if ( nc ${INFRA} 22 -w 1 -q 0 < /dev/null ); then
-        break
-    fi
-    if [ $count -eq 30 ]; then
-        echo "Admin/Infra node is not network accessible"
-        ./cleanup.sh
-        exit 1
-    fi
-done
+port_test "30" ${INFRA} "22"
+# count=1
+# while [ $count -lt 30 ]; do
+    # count=$(( count + 1 ))
+    # sleep 60s
+    # if ( nc ${INFRA} 22 -w 1 -q 0 < /dev/null ); then
+        # break
+    # fi
+    # if [ $count -eq 30 ]; then
+        # echo "Admin/Infra node is not network accessible"
+        # cleanup
+        # exit 1
+    # fi
+# done
 
 # Destroy pxeappliance vm/domain
 virsh destroy pxeappliance
@@ -325,19 +365,20 @@ virsh undefine pxeappliance
 # WAIT FOR CROWBAR NODE TO BE RESPONSIVE
 # Giving ~30 minutes
 echo "Waiting for crowbar installation.."
-count=1
-while [ $count -lt 30 ]; do
-    count=$((count +1))
-    sleep 60s
-    if ( nc ${CROWBAR} 3000 -w 1 -q 0 < /dev/null ); then
-        break
-    fi
-    if [ $count -eq 30 ]; then
-        echo "Crowbar vm did not come up."
-        ./cleanup.sh
-        exit 1
-    fi
-done
+port_test "30" ${CROWBAR} "3000"
+# count=1
+# while [ $count -lt 30 ]; do
+    # count=$((count +1))
+    # sleep 60s
+    # if ( nc ${CROWBAR} 3000 -w 1 -q 0 < /dev/null ); then
+        # break
+    # fi
+    # if [ $count -eq 30 ]; then
+        # echo "Crowbar vm did not come up."
+        # cleanup
+        # exit 1
+    # fi
+# done
 
 # Since all nodes should be sitting in PXE we will wait a maximum of 30 minutes for all nodes to register
 echo "Waiting for all crowbar managed nodes to register.."
@@ -351,7 +392,7 @@ while [ $count -lt 30 ]; do
     fi
     if [ $count -eq 30 ]; then
         echo "Some crowbar nodes did not come up."
-        ./cleanup.sh
+        cleanup
         exit 1
     fi
 done 
@@ -395,5 +436,7 @@ crowbar_proposal "nova_dashboard" "commit"
 crowbar_proposal_status "nova_dashboard"
 ##################################################
 
-## Remove lock because i'm done.
-rm -rf /var/lock/shep_protection.lock
+## Cleanup
+cleanup
+
+EOF
