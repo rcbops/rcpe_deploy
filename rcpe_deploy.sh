@@ -3,12 +3,30 @@
 # set -e
 # set -x
 
-## SET INTERRUPT EXIT
+## Cleanup function for all events
+function cleanup() {
+    echo "Exiting..."
+    virsh destroy pxeappliance
+    virsh undefine pxeappliance
+    qemu-nbd -d /dev/nbd0
+    rm -rf /var/lock/shep_protection.lock
+    rm -rf /opt/rcb/*
+    exit $?
+}
 
+## SET INTERRUPT EXIT
 trap cleanup SIGINT
+
 ## GRAB DRAC AND CROWBAR CREDENTIALS:
 ## File should contain DUSERNAME, DPASSWORD, CUSERNAME, CPASSWORD
-source .creds
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+if [ -f $DIR/.creds ]; then
+    source .creds
+else
+    echo "Missing creds file."
+    cleanup
+    exit $?
+fi
 
 ## Ensure i'm not already running (Shep protection)
 if [ -f /var/lock/shep_protection.lock ]; then
@@ -27,16 +45,6 @@ PXE_XML_URL=${PXE_XML_URL:-http://c271871.r71.cf1.rackcdn.com/pxeappliance.xml}
 
 # FOR CROWBAR PROPOSALS
 PROPOSAL_NAME="openstack"
-
-function cleanup() {
-    echo "Exiting..."
-    virsh destroy pxeappliance
-    virsh undefine pxeappliance
-    qemu-nbd -d /dev/nbd0
-    rm -rf /var/lock/shep_protection.lock
-    rm -rf /opt/rcb/*
-    exit $?
-}
 
 function ipmi_pxeboot() {
     POWERSTATE=`ipmitool -H ${INFRA_DRAC} -U $DUSERNAME -P $DPASSWORD chassis status | grep System | awk '{print $4}'`
