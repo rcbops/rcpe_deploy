@@ -265,7 +265,7 @@ chmod -R 0700 /home/crowbar/.ssh
 
 # REMOVE FIRSTBOOT
 chmod -R a+r /etc/gemrc
-sed -i '/\/tftpboot\/ubuntu_dvd\/extra\/firstboot.sh/d' /etc/rc.local
+sed -i '\/bin\/bash \/home\/crowbar\/firstboot.sh/d' /etc/rc.local
 EOF
 
 echo "Putting scripts in place.."
