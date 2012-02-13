@@ -480,7 +480,7 @@ crowbar_proposal "mysql" "status" "30"
 crowbar_proposal "keystone" "create"
 crowbar_proposal "keystone" "edit" "$CONT_MAC" 
 crowbar_proposal "keystone" "commit"
-crowbar_proposal "keystone"
+crowbar_proposal "keystone" "status"
 ##################################################
 
 ##################################################
@@ -488,14 +488,14 @@ crowbar_proposal "keystone"
 crowbar_proposal "glance" "create"
 crowbar_proposal "glance" "edit" "$CONT_MAC"
 crowbar_proposal "glance" "commit"
-crowbar_proposal "glance"
+crowbar_proposal "glance" "status"
 ##################################################
 
 ##################################################
 # Push the Nova Proposal
 crowbar_proposal "nova" "create"
 crowbar_proposal "nova" "commit"
-crowbar_proposal "nova" "30"
+crowbar_proposal "nova" "status" "30"
 ##################################################
 
 ##################################################
@@ -503,7 +503,7 @@ crowbar_proposal "nova" "30"
 crowbar_proposal "nova_dashboard" "create"
 crowbar_proposal "nova_dashboard" "edit" "$CONT_MAC"
 crowbar_proposal "nova_dashboard" "commit"
-crowbar_proposal "nova_dashboard"
+crowbar_proposal "nova_dashboard" "status"
 ##################################################
 
 ## Cleanup
