@@ -13,12 +13,13 @@ PROPOSAL_NAME="openstack"
 
 ## Cleanup function for all events
 function cleanup() {
-    echo "Exiting..."
-    virsh destroy pxeappliance
+    echo "Cleaning up..."
+    (virsh destroy pxeappliance
     virsh undefine pxeappliance
     qemu-nbd -d /dev/nbd0
     rm -rf /var/lock/shep_protection.lock
-    rm -rf /opt/rcb/*
+    rm -rf /opt/rcb/*) > /dev/null 2>&1
+    echo "Exiting..."
     exit $?
 }
 
@@ -85,11 +86,18 @@ function port_test() {
     done
 }
 
-## Given a service name and a action create/commit a crowbar proposal. This in effect installs service software on node
-## determined by crowbar discovery.
+## Given a service name and an action create/commit/edit a crowbar proposal. 
+## This in effect installs service software on node determined by crowbar 
+## discovery.
 function crowbar_proposal() {
     # $1 - Service Name
-    # $2 - Action (create|commit)
+    # $2 - Action (create|commit|edit|status)
+        # create: have crowbar create the initial proposal
+        # commit: have crowbar commit a previously created proposal
+        # edit: edit a previously created proposal before commiting
+        # status: check the status of a committed proposal andf fail if not applied
+    # $3 - Wait timer (if called with 'status')
+    # $3 - mac address of target node (if called with 'edit')
     service=$1
     action=$2
     cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
@@ -97,12 +105,92 @@ function crowbar_proposal() {
     echo " Service: ${service}"
     echo " Action: ${action}"
 
-    if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
-        echo "Unable to ${action} the ${service} Proposal"
-        cleanup
-        exit 1
-    fi
+    # check what we were called with and take appropriate action
+    case $action in
+
+        "create" | "commit")
+    
+            if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
+                echo "Unable to ${action} the ${service} Proposal"
+                cleanup
+                exit 1
+            fi
+        ;;
+
+        "edit")
+                        
+            mac="$3" 
+            target_host="$(echo d${mac}.${CBFQDN} | sed -e s/\:/\-/)"
+
+            # perform actions on remote node
+            if ! (sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} << EOF 
+                # dump the proposal out in json file
+                ${cmd} proposal show ${PROPOSAL_NAME} > /tmp/$service.json
+                # find the hostname we want to alter
+                current_host=$(grep $CBFQDN  $service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
+                # edit the file inline, inderting our target host instead
+                sed -i -e s/$current_host/$target_host/ /tmp/$service.json
+                # use the edit flag and feed it our newly edited json file
+                ${cmd} proposal edit $service --file=/tmp/$service.json
+                rm /tmp/$service.json
+                EOF) ; then
+                    echo "Unable to ${action} the ${service} Proposal"
+                    cleanup
+                    exit 1
+            else
+                echo "${service} proposal edited successfully"
+            fi
+        ;;
+        
+        "status")
+            # give crowbar a chance to sort itself out
+            sleep 60s
+            # NOTE: if called with status, $3 is the wait time
+            wait_timer={$3:-15} # Default to 15 minutes if no wait_time provided
+
+            if ! timeout $wait_timer sh -c "while ! sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} \"${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success\" ; do sleep 1 ; done"
+                echo "${service} proposal not applied"
+                cleanup
+                exit 1
+            else
+                echo "${service} proposal sucessfully applied"
+            fi
+        ;;
+
+    esac
+                
+            
+
 }
+
+# given a service name and the mac of a target controller node, edit the crowbar proposal
+# so that service is forced onto your target controller node (rather than accepting
+# crowbar's proposal which is usually the first discovered node
+function crowbar_proposal_edit() {
+
+    # $1 - Service name
+    # $2 - second infra mac
+    service=$1
+    mac=$2
+    cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
+    echo "Editing crowbar_proposal using:"
+    echo " Service: ${service}"
+    echo " Action: edit"
+    
+    # make the mac address into a crowbar friendly hostname
+    target_host="$(echo d${mac}.${CBFQDN} | sed -e s/\:/\-/)"
+
+    # urgh need to fix so it dumps out on remote node rather than locally
+    sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} << EOF 
+    ${cmd} proposal show ${PROPOSAL_NAME} > /tmp/$service.json
+    current_host=$(grep $CBFQDN  $service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
+    sed -i -e s/$current_host/$target_host/ $service.json
+    ${cmd} proposal edit $service --file=/tmp/$service.json
+# broken indent to help vim highlighting
+EOF
+
+}
+
 
 ## Given service name and time to wat check the status of the above proposal until Active. 
 function crowbar_proposal_status() {
@@ -157,7 +245,7 @@ fi
 
 # Parse json file, extract bastion/pxeapp/infra/crowbar addresses, export to .deployrc
 echo "Extracting json values to environment variables.."
-for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
+for i in BASTION PXEAPP INFRA INFRA_MAC INFRA_DRAC CROWBAR NETMASK GATEWAY NAMESERVER CBFQDN NODECOUNT CONT_MAC; do  python -c "import json; import os; data = open('env.json');json_data = json.load(data); data.close(); print json_data['attributes']['network']['reserved']['$i'.lower()]" | echo "export $i=`awk '{print $0}'`" >> .deployrc; done
 
 # Source .deployrc
 source .deployrc
@@ -382,36 +470,40 @@ done
 ##################################################
 # Push MYSQL Proposal
 crowbar_proposal "mysql" "create"
+crowbar_proposal "mysql" "edit" "$CONT_MAC"
 crowbar_proposal "mysql" "commit"
-crowbar_proposal_status "mysql" 30
+crowbar_proposal "mysql" "status" "30"
 ##################################################
 
 ##################################################
 # Push the Keystone Proposal
 crowbar_proposal "keystone" "create"
+crowbar_proposal "keystone" "edit" "$CONT_MAC" 
 crowbar_proposal "keystone" "commit"
-crowbar_proposal_status "keystone"
+crowbar_proposal "keystone"
 ##################################################
 
 ##################################################
 # Push the Glance Proposal
 crowbar_proposal "glance" "create"
+crowbar_proposal "glance" "edit" "$CONT_MAC"
 crowbar_proposal "glance" "commit"
-crowbar_proposal_status "glance"
+crowbar_proposal "glance"
 ##################################################
 
 ##################################################
 # Push the Nova Proposal
 crowbar_proposal "nova" "create"
 crowbar_proposal "nova" "commit"
-crowbar_proposal_status "nova" 30
+crowbar_proposal "nova" "30"
 ##################################################
 
 ##################################################
 # Push the Dash Proposal
 crowbar_proposal "nova_dashboard" "create"
+crowbar_proposal "nova_dashboard" "edit" "$CONT_MAC"
 crowbar_proposal "nova_dashboard" "commit"
-crowbar_proposal_status "nova_dashboard"
+crowbar_proposal "nova_dashboard"
 ##################################################
 
 ## Cleanup
