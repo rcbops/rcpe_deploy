@@ -158,65 +158,7 @@ function crowbar_proposal() {
         ;;
 
     esac
-                
-            
 
-}
-
-# given a service name and the mac of a target controller node, edit the crowbar proposal
-# so that service is forced onto your target controller node (rather than accepting
-# crowbar's proposal which is usually the first discovered node
-function crowbar_proposal_edit() {
-
-    # $1 - Service name
-    # $2 - second infra mac
-    service=$1
-    mac=$2
-    cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
-    echo "Editing crowbar_proposal using:"
-    echo " Service: ${service}"
-    echo " Action: edit"
-    
-    # make the mac address into a crowbar friendly hostname
-    target_host="$(echo d${mac}.${CBFQDN} | sed -e s/\:/\-/)"
-
-    # urgh need to fix so it dumps out on remote node rather than locally
-    sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} << EOF 
-    ${cmd} proposal show ${PROPOSAL_NAME} > /tmp/$service.json
-    current_host=$(grep $CBFQDN  $service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
-    sed -i -e s/$current_host/$target_host/ $service.json
-    ${cmd} proposal edit $service --file=/tmp/$service.json
-# broken indent to help vim highlighting
-EOF
-
-}
-
-
-## Given service name and time to wat check the status of the above proposal until Active. 
-function crowbar_proposal_status() {
-    # $1 - Service Name
-    # $2 - Wait Time
-    service=$1
-    wait_timer=${2:-15} # Default to 15 minutes if no wait_time provided
-    cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
-    echo "Executing crowbar_proposal using:"
-    echo " Service: ${service}"
-    echo " Wait Time: ${wait_timer}"
-
-    count=1
-    while [ $count -lt $wait_timer ]; do
-        count=$(( count + 1 ))
-        sleep 60s
-        if ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success" ); then
-            echo "${service} proposal sucessfully applied"
-            break
-        fi
-        if [ $count == $wait_timer ]; then
-            echo "${service} proposal not applied"
-            cleanup
-            exit 1
-        fi
-    done
 }
 
 
