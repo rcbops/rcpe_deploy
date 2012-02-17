@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ## TURN ON FOR DEBUGGING
- set -e
+# set -e
 # set -x
 
 ## URL's for downloading the PXEAPPLIANCE
@@ -14,11 +14,11 @@ PROPOSAL_NAME="openstack"
 ## Cleanup function for all events
 function cleanup() {
     echo "Cleaning up..."
-    (virsh destroy pxeappliance
+    virsh destroy pxeappliance
     virsh undefine pxeappliance
     qemu-nbd -d /dev/nbd0
     rm -rf /var/lock/shep_protection.lock
-    rm -rf /opt/rcb/*) > /dev/null 2>&1
+    rm -rf /opt/rcb/*
     exit $?
 }
 
@@ -115,11 +115,13 @@ function crowbar_proposal() {
             if ! ( ${SSH_COMMAND} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
                 echo "Unable to ${action} the ${service} Proposal"
                 cleanup
-                exit 1
+	        else
+		        echo "${service} proposal was ${action}ed"
             fi
         ;;
 
         "edit")
+
             mac="$3"
             target_host="$(echo d${mac}.${FQDN} | sed -e s/\:/\-/g)"
 
@@ -127,9 +129,26 @@ function crowbar_proposal() {
             # desired target node for that service, then scp it over to use
             # with the "crowbar proposal 'edit'" command
             if  ${SSH_COMMAND} "${cmd} proposal show ${PROPOSAL_NAME}" > /tmp/$service.json; then
-                current_host=$( grep $FQDN /tmp/$service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
-                sed -i -e s/$current_host/$target_host/ /tmp/$service.json
+                # slightly different mod of json file for nova proposal
+                if [[ "$service" = "nova" ]]; then
+                
+                    current_host=$(grep -A1 "nova-multi-controller\":" /tmp/$service.json | tail -1 | cut -d"\"" -f2)
+
+                    # put a placeholder there
+                    sed -i -e "s/$current_host/REPLACE_WITH_TARGET/" /tmp/$service.json
+                    sed -i -e "s/$target_host/REPLACE_WITH_CURRENT/" /tmp/$service.json
+
+                    # do the switcharooney
+                    sed -i -e "s/REPLACE_WITH_TARGET/$target_host/" /tmp/$service.json
+                    sed -i -e "s/REPLACE_WITH_CURRENT/$current_host/" /tmp/$service.json
+
+                else
+                    current_host=$( grep $FQDN /tmp/$service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
+                    sed -i -e s/$current_host/$target_host/ /tmp/$service.json
+                fi
+                # copy the edited json file back over
                 scp -i /home/rcb/.ssh/id_rsa  /tmp/$service.json crowbar@${CROWBAR}:/tmp/$service.json
+                # now actually use the edited json file to alter the proposal
                 if ${SSH_COMMAND} "${cmd} proposal edit ${PROPOSAL_NAME} --file /tmp/$service.json"; then
                     echo "$service proposal edited successfully"
                 fi
@@ -144,9 +163,9 @@ function crowbar_proposal() {
             # give crowbar a chance to sort itself out
             sleep 60s
             # NOTE: if called with status, $3 is the wait time
-            wait_timer={$3:-15} # Default to 15 minutes if no wait_time provided
+            wait_timer=${3:-15} # Default to 15 minutes if no wait_time provided
 
-            if ! timeout ${wait_timer}m sh -c "while ! sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} \"${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success\" ; do sleep 60 ; done"; then
+            if ! timeout ${wait_timer}m sh -c "while ! ${SSH_COMMAND} \"${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success\" ; do sleep 60 ; done"; then
                 echo "${service} proposal not applied"
                 cleanup
                 exit 1
@@ -388,7 +407,7 @@ port_test "30" ${CROWBAR} "3000"
 # Since all nodes should be sitting in PXE we will wait a maximum of 30 minutes for all nodes to register
 echo "Waiting for all crowbar managed nodes to register.."
 count=1
-while [ $count -lt 30000 ]; do 
+while [ $count -lt 30 ]; do 
     count=$((count +1))
     sleep 60s
     ELEMENTS=$(sudo -u ${SUDO_USER} -- ssh ${SSH_OPTS} ${CUSERNAME}@${CROWBAR} "/opt/dell/bin/crowbar_node_state -U ${CUSERNAME} -P ${CPASSWORD} status --no-ready | wc -l")
@@ -433,6 +452,7 @@ crowbar_proposal "glance" "status"
 ##################################################
 # Push the Nova Proposal
 crowbar_proposal "nova" "create"
+crowbar_proposal "nova" "edit" "$CONT_MAC"
 crowbar_proposal "nova" "commit"
 crowbar_proposal "nova" "status" "30"
 ##################################################
