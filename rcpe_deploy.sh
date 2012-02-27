@@ -14,12 +14,11 @@ PROPOSAL_NAME="openstack"
 ## Cleanup function for all events
 function cleanup() {
     echo "Cleaning up..."
-    (virsh destroy pxeappliance
+    virsh destroy pxeappliance
     virsh undefine pxeappliance
     qemu-nbd -d /dev/nbd0
     rm -rf /var/lock/shep_protection.lock
-    rm -rf /opt/rcb/*) > /dev/null 2>&1
-    echo "Exiting..."
+    rm -rf /opt/rcb/*
     exit $?
 }
 
@@ -91,16 +90,19 @@ function port_test() {
 ## discovery.
 function crowbar_proposal() {
     # $1 - Service Name
-    # $2 - Action (create|commit|edit|status)
+    # $2 - Action (create|edit|commit|status)
         # create: have crowbar create the initial proposal
-        # commit: have crowbar commit a previously created proposal
         # edit: edit a previously created proposal before commiting
-        # status: check the status of a committed proposal andf fail if not applied
+        # commit: have crowbar commit a previously created proposal
+        # status: check the status of a committed proposal and fail if not applied
     # $3 - Wait timer (if called with 'status')
     # $3 - mac address of target node (if called with 'edit')
     service=$1
     action=$2
     cmd="/opt/dell/bin/crowbar_${service} -U ${CUSERNAME} -P ${CPASSWORD}"
+    SSH_OPTS="-n -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+    SSH_COMMAND="ssh -i /home/rcb/.ssh/id_rsa ${SSH_OPTS} crowbar@${CROWBAR}"
+    FQDN=$(echo $CBFQDN|  sed -e 's/[^.]*\.//')
     echo "Executing crowbar_proposal using:"
     echo " Service: ${service}"
     echo " Action: ${action}"
@@ -110,45 +112,60 @@ function crowbar_proposal() {
 
         "create" | "commit")
     
-            if ! ( sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
+            if ! ( ${SSH_COMMAND} "${cmd} proposal ${action} ${PROPOSAL_NAME}" ); then
                 echo "Unable to ${action} the ${service} Proposal"
                 cleanup
-                exit 1
+	        else
+		        echo "${service} proposal was ${action}ed"
             fi
         ;;
 
         "edit")
-                        
-            mac="$3" 
-            target_host="$(echo d${mac}.${CBFQDN} | sed -e s/\:/\-/)"
 
-            # perform actions on remote node
-            if ! (sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} << EOF 
-                # dump the proposal out in json file
-                ${cmd} proposal show ${PROPOSAL_NAME} > /tmp/$service.json
-                # find the hostname we want to alter
-                current_host=$(grep $CBFQDN  $service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
-                # edit the file inline, inderting our target host instead
-                sed -i -e s/$current_host/$target_host/ /tmp/$service.json
-                # use the edit flag and feed it our newly edited json file
-                ${cmd} proposal edit $service --file=/tmp/$service.json
-                rm /tmp/$service.json
-                EOF) ; then
-                    echo "Unable to ${action} the ${service} Proposal"
-                    cleanup
-                    exit 1
+            mac="$3"
+            target_host="$(echo d${mac}.${FQDN} | sed -e s/\:/\-/g)"
+
+            # show the proposal, grab the output here, edit it to include our
+            # desired target node for that service, then scp it over to use
+            # with the "crowbar proposal 'edit'" command
+            if  ${SSH_COMMAND} "${cmd} proposal show ${PROPOSAL_NAME}" > /tmp/$service.json; then
+                # slightly different mod of json file for nova proposal
+                if [[ "$service" = "nova" ]]; then
+                
+                    current_host=$(grep -A1 "nova-multi-controller\":" /tmp/$service.json | tail -1 | cut -d"\"" -f2)
+
+                    # put a placeholder there
+                    sed -i -e "s/$current_host/REPLACE_WITH_TARGET/" /tmp/$service.json
+                    sed -i -e "s/$target_host/REPLACE_WITH_CURRENT/" /tmp/$service.json
+
+                    # do the switcharooney
+                    sed -i -e "s/REPLACE_WITH_TARGET/$target_host/" /tmp/$service.json
+                    sed -i -e "s/REPLACE_WITH_CURRENT/$current_host/" /tmp/$service.json
+
+                else
+                    current_host=$( grep $FQDN /tmp/$service.json|sed -e 's/^[ \t]*//'|sed -e 's/\"//g' )
+                    sed -i -e s/$current_host/$target_host/ /tmp/$service.json
+                fi
+                # copy the edited json file back over
+                scp -i /home/rcb/.ssh/id_rsa  /tmp/$service.json crowbar@${CROWBAR}:/tmp/$service.json
+                # now actually use the edited json file to alter the proposal
+                if ${SSH_COMMAND} "${cmd} proposal edit ${PROPOSAL_NAME} --file /tmp/$service.json"; then
+                    echo "$service proposal edited successfully"
+                fi
             else
-                echo "${service} proposal edited successfully"
-            fi
+                echo "$service proposal could not be edited"
+                cleanup
+                exit 1
+            fi                
         ;;
         
         "status")
             # give crowbar a chance to sort itself out
             sleep 60s
             # NOTE: if called with status, $3 is the wait time
-            wait_timer={$3:-15} # Default to 15 minutes if no wait_time provided
+            wait_timer=${3:-15} # Default to 15 minutes if no wait_time provided
 
-            if ! timeout $wait_timer sh -c "while ! sudo -u rcb -- ssh ${SSH_OPTS} crowbar@${CROWBAR} \"${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success\" ; do sleep 1 ; done"
+            if ! timeout ${wait_timer}m sh -c "while ! ${SSH_COMMAND} \"${cmd} proposal show ${PROPOSAL_NAME} | grep crowbar-status | grep success\" ; do sleep 60 ; done"; then
                 echo "${service} proposal not applied"
                 cleanup
                 exit 1
@@ -162,7 +179,6 @@ function crowbar_proposal() {
 }
 
 
-SSH_OPTS="-n -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 # Prepare bastion interface/iptables
 echo "Setting up iptables and system forwarding for eth0.."
@@ -436,6 +452,7 @@ crowbar_proposal "glance" "status"
 ##################################################
 # Push the Nova Proposal
 crowbar_proposal "nova" "create"
+crowbar_proposal "nova" "edit" "$CONT_MAC"
 crowbar_proposal "nova" "commit"
 crowbar_proposal "nova" "status" "30"
 ##################################################
